@@ -1,6 +1,10 @@
+"""LinkPulse - Main Application Server & API Engine."""
+
 import csv
 import io
 import os
+import sqlite3
+import traceback
 from datetime import datetime, timedelta
 from flask import Flask, Response, jsonify, redirect, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -16,7 +20,27 @@ from helpers import (
 app = Flask(__name__, static_folder=None)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
+
+# 1. Initialize Tables on Startup
 initialize_database(Config)
+
+# 2. Auto-Migrate DB on Startup (Adds 'country' column if missing)
+def auto_migrate():
+    try:
+        if Config.DB_ENGINE == "mysql":
+            return
+        conn = sqlite3.connect(Config.SQLITE_PATH)
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(click_events);")
+        cols = [r[1] for r in cur.fetchall()]
+        if cols and "country" not in cols:
+            cur.execute("ALTER TABLE click_events ADD COLUMN country TEXT DEFAULT 'Local Network';")
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print("Auto-migration notice:", e)
+
+auto_migrate()
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
@@ -42,7 +66,6 @@ def iso(val):
 
 def short_url_for(code):
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
-    
     if not base or "127.0.0.1" in base or "localhost" in base:
         try:
             proto = request.headers.get("X-Forwarded-Proto", request.scheme)
@@ -50,7 +73,6 @@ def short_url_for(code):
             base = f"{proto}://{host}"
         except Exception:
             base = "http://127.0.0.1:5000"
-            
     return f"{base}/{code}"
 
 def row_to_link(row):
@@ -100,19 +122,7 @@ def detect_country(req):
         return "India (Local Dev)" if "in" in lang else "Local Network"
     return "Global / Direct"
 
-_country_column_ensured = False
-
-def ensure_country_column():
-    global _country_column_ensured
-    if _country_column_ensured:
-        return
-    try:
-        db = get_db()
-        db.cursor().execute("ALTER TABLE click_events ADD COLUMN country TEXT DEFAULT 'Local Network'")
-        db.commit()
-    except Exception:
-        pass
-    _country_column_ensured = True
+# ----------------- Error Handlers (With Real Tracebacks) -----------------
 
 @app.errorhandler(ApiError)
 def handle_api_error(e):
@@ -124,12 +134,23 @@ def handle_404(e):
         return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
     return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
 
-import traceback
-
-@app.errorhandler(500)
-def handle_500(e):
-    print("\n🚨 500 CRASH TRACEBACK:\n", traceback.format_exc())
-    return Response(f"<h1>500 Internal Server Error</h1><p>{str(e)}</p>", status=500, mimetype="text/html")
+@app.errorhandler(Exception)
+def handle_all_exceptions(e):
+    error_trace = traceback.format_exc()
+    print("\n🚨 UNHANDLED 500 CRASH:\n", error_trace)
+    if isinstance(e, ApiError):
+        return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
+    if request.path.startswith("/api/"):
+        return jsonify({"error": {"code": "internal_error", "message": str(e), "trace": error_trace}}), 500
+    return Response(
+        f"""<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;">
+        <h1 style="color:#dc2626;">500 Internal Server Error</h1>
+        <p><strong>Error Details:</strong> {str(e)}</p>
+        <pre style="background:#fee2e2;padding:1rem;border-radius:8px;overflow-x:auto;">{error_trace}</pre>
+        </body></html>""",
+        status=500,
+        mimetype="text/html"
+    )
 
 # ----------------- Credentials & Auth Routes -----------------
 
@@ -309,20 +330,25 @@ def delete_link(link_id):
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
 
-# ----------------- Instant Click Endpoint -----------------
+# ----------------- Instant Click Simulator Endpoint -----------------
 
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
-    ensure_country_column()
     link = get_link_or_404(link_id)
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s", (link_id,))
     country = detect_country(request)
-    cur.execute("""
-        INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-        VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0, %s)
-    """, (link_id, country))
+    try:
+        cur.execute("""
+            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
+            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0, %s)
+        """, (link_id, country))
+    except Exception:
+        cur.execute("""
+            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
+            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0)
+        """, (link_id,))
     db.commit()
     return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
 
@@ -422,7 +448,6 @@ def analytics_clicks():
 
 @app.get("/api/analytics/breakdown")
 def analytics_breakdown():
-    ensure_country_column()
     total_clicks = query_one("SELECT COUNT(*) as c FROM click_events WHERE is_bot = 0")["c"] or 1
     total_clicks = max(1, total_clicks)
 
@@ -434,10 +459,13 @@ def analytics_breakdown():
         SELECT COALESCE(NULLIF(device_type, ''), 'desktop') AS source, COUNT(*) AS count
         FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
     """)
-    countries = query_all("""
-        SELECT COALESCE(NULLIF(country, ''), 'Direct / Local') AS source, COUNT(*) AS count
-        FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
-    """)
+    try:
+        countries = query_all("""
+            SELECT COALESCE(NULLIF(country, ''), 'Direct / Local') AS source, COUNT(*) AS count
+            FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
+        """)
+    except Exception:
+        countries = []
 
     def present(rows):
         return [{"name": str(item["source"]), "count": max(0, item["count"]),
@@ -457,7 +485,6 @@ def redirect_engine(short_code):
     if short_code in ("favicon.ico", "robots.txt"):
         return Response(status=404)
 
-    ensure_country_column()
     row = query_one(LINK_SELECT + " WHERE l.short_code = %s", (short_code,))
     if not row:
         return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
@@ -532,7 +559,7 @@ def redirect_engine(short_code):
 </body>
 </html>""", 200
 
-    # 2. Telemetry and Bot Classification
+    # 2. Telemetry and Real Bot Classification
     ua = request.headers.get("User-Agent") or ""
     device, browser, is_bot = classify_user_agent(ua)
     ref = sanitize_referrer(request.headers.get("Referer"))
@@ -552,10 +579,18 @@ def redirect_engine(short_code):
         if cur.rowcount == 0 and row["click_limit"] is not None:
             return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
-    cur.execute("""
-        INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (row["id"], ref, ua[:512], device, browser, 1 if is_bot else 0, country))
+    # Safe Insert (Works even if country column was missing)
+    try:
+        cur.execute("""
+            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (row["id"], ref, ua[:512], device, browser, 1 if is_bot else 0, country))
+    except Exception:
+        cur.execute("""
+            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (row["id"], ref, ua[:512], device, browser, 1 if is_bot else 0))
+        
     db.commit()
 
     return redirect(row["original_url"], code=302)
