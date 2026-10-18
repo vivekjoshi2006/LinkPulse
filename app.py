@@ -8,7 +8,7 @@ from flask import Flask, Response, jsonify, redirect, request, send_from_directo
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from config import Config
-from database import close_db, get_db, initialize_database, query_all, query_one
+from database import close_db, get_db, get_engine, initialize_database, query_all, query_one
 from helpers import (
     ApiError, RateLimiter, anonymize_ip, classify_user_agent,
     generate_short_code, parse_expires_at, sanitize_referrer,
@@ -25,8 +25,9 @@ initialize_database(Config)
 # 2. Auto-Migrate DB on Startup
 def auto_migrate():
     try:
-        if Config.DB_ENGINE == "mysql":
+        if get_engine() == "mysql":
             return
+
         conn = sqlite3.connect(Config.SQLITE_PATH)
         cur = conn.cursor()
 
@@ -128,7 +129,7 @@ def row_to_link(row):
         "original_url": row["original_url"],
         "short_code": row["short_code"],
         "custom_alias": row["custom_alias"],
-        "short_url": short_url_for(row["short_code"]),
+        "short_url": short_url_for(row["custom_alias"] or row["short_code"]),
         "created_at": iso(row["created_at"]),
         "expires_at": iso(row["expires_at"]),
         "click_limit": row["click_limit"],
@@ -252,7 +253,8 @@ def api_login():
                 "success": True,
                 "name": admin_user["name"],
                 "role": admin_user["role"],
-                "country": admin_user["country"]
+                "country": admin_user["country"],
+                "email": f"{ADMIN_USER.lower()}@linkpulse.io"
             }
         })
 
@@ -268,7 +270,8 @@ def api_login():
                 "success": True,
                 "name": user["name"],
                 "role": user["role"],
-                "country": user["country"]
+                "country": user["country"],
+                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
             }
         })
 
@@ -294,7 +297,7 @@ def api_register():
 
     pwd_hash = generate_password_hash(password)
     try:
-        age_int = int(age) if age else None
+        age_int = int(age) if age is not None and str(age).strip() != "" else None
     except ValueError:
         age_int = None
 
@@ -318,17 +321,18 @@ def api_register():
             "success": True,
             "name": name,
             "role": role,
-            "country": country
+            "country": country,
+            "email": username if "@" in username else f"{username.lower()}@linkpulse.io"
         }
     }), 201
 
 @app.post("/api/auth/google")
 def api_google_auth():
     data = json_body()
-    email = (data.get("email") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     name = (data.get("name") or "Google User").strip()
     
-    if not email:
+    if not email or "@" not in email:
         raise ApiError(400, "bad_request", "Valid Google account email required.")
 
     user = query_one("SELECT * FROM users WHERE username = %s", (email,))
@@ -344,6 +348,9 @@ def api_google_auth():
         role = "Analyst"
         country = "India"
     else:
+        # Prevent taking over password-based accounts without credentials
+        if user.get("auth_provider") != "google" and user.get("password_hash"):
+            raise ApiError(403, "forbidden", "An account with this email exists using password authentication. Please sign in with your password.")
         user_id = user["id"]
         name = user["name"]
         role = user["role"]
@@ -360,7 +367,8 @@ def api_google_auth():
             "success": True,
             "name": name,
             "role": role,
-            "country": country
+            "country": country,
+            "email": email
         }
     })
 
@@ -368,6 +376,49 @@ def api_google_auth():
 def logout():
     session.clear()
     return redirect("/login")
+
+# ----------------- Account Settings Profile API -----------------
+
+@app.route("/api/account", methods=["GET", "PATCH"])
+def account_settings():
+    user = get_current_user()
+
+    if request.method == "GET":
+        return jsonify({
+            "data": {
+                "name": user["name"],
+                "role": user["role"],
+                "country": user["country"],
+                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
+            }
+        })
+
+    data = json_body()
+    name = str(data.get("name") or user["name"]).strip()
+    role = str(data.get("role") or user["role"]).strip()
+    country = str(data.get("country") or user["country"]).strip()
+
+    if not name:
+        raise ApiError(400, "bad_request", "Full name cannot be empty.")
+
+    db = get_db()
+    db.cursor().execute("""
+        UPDATE users SET name = %s, role = %s, country = %s WHERE id = %s
+    """, (name, role, country, user["id"]))
+    db.commit()
+
+    session["admin_name"] = name
+    session["user_role"] = role
+    session["user_country"] = country
+
+    return jsonify({
+        "data": {
+            "name": name,
+            "role": role,
+            "country": country,
+            "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
+        }
+    })
 
 # ----------------- Static Asset Routes -----------------
 
@@ -419,13 +470,13 @@ def create_link():
     alias = data.get("custom_alias")
     if alias:
         alias = validate_alias(alias.strip())
-        if query_one("SELECT id FROM links WHERE short_code = %s", (alias,)):
+        if query_one("SELECT id FROM links WHERE short_code = %s OR custom_alias = %s", (alias, alias)):
             raise ApiError(409, "conflict", f"Alias '{alias}' is already in use.")
 
     code = alias or generate_short_code()
     if not alias:
         for _ in range(10):
-            if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
+            if not query_one("SELECT id FROM links WHERE short_code = %s OR custom_alias = %s", (code, code)):
                 break
             code = generate_short_code()
 
@@ -442,7 +493,6 @@ def create_link():
     password = data.get("password")
     pwd_hash = generate_password_hash(password.strip()) if password and len(password.strip()) >= 3 else None
 
-    # Foreign Key Safe: If campaign exists and belongs to this user
     campaign_id = data.get("campaign_id") or None
     if campaign_id:
         try:
@@ -469,28 +519,56 @@ def update_link(link_id):
     user = get_current_user()
     current = get_user_link_or_404(link_id, user["id"])
     data = json_body()
+
     title = current["title"]
     destination = current["original_url"]
     click_limit = current["click_limit"]
     expires_at = current["expires_at"]
+    campaign_id = current["campaign_id"]
+    pwd_hash = current["password_hash"]
 
     if "title" in data:
         t = str(data.get("title") or "").strip()
         if t: title = t[:160]
+
     if "original_url" in data:
         destination = validate_destination(data.get("original_url"))
+
     if "click_limit" in data:
         val = data.get("click_limit")
         click_limit = int(val) if val not in (None, "") else None
+
     if "expires_at" in data:
         expires_at = parse_expires_at(data.get("expires_at"))
 
+    if "campaign_id" in data:
+        cid = data.get("campaign_id")
+        if cid:
+            try:
+                cid = int(cid)
+                campaign_id = cid if query_one("SELECT id FROM campaigns WHERE id = %s AND user_id = %s", (cid, user["id"])) else None
+            except (ValueError, TypeError):
+                campaign_id = None
+        else:
+            campaign_id = None
+
+    if "password" in data:
+        pw = str(data.get("password") or "").strip()
+        if pw:
+            if len(pw) < 3:
+                raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
+            pwd_hash = generate_password_hash(pw)
+        else:
+            pwd_hash = None  # Clear password protection
+
     db = get_db()
     db.cursor().execute("""
-        UPDATE links SET title = %s, original_url = %s, click_limit = %s, expires_at = %s
+        UPDATE links 
+        SET title = %s, original_url = %s, click_limit = %s, expires_at = %s, campaign_id = %s, password_hash = %s
         WHERE id = %s AND user_id = %s
-    """, (title, destination, click_limit, expires_at, link_id, user["id"]))
+    """, (title, destination, click_limit, expires_at, campaign_id, pwd_hash, link_id, user["id"]))
     db.commit()
+
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
 @app.patch("/api/links/<int:link_id>/status")
@@ -521,6 +599,13 @@ def delete_link(link_id):
 def simulate_click(link_id):
     user = get_current_user()
     link = get_user_link_or_404(link_id, user["id"])
+
+    if link["status"] != "active":
+        raise ApiError(400, "link_inactive", f"Cannot simulate click: Link is currently {link['status']}.")
+
+    if link["click_limit"] is not None and link["click_count"] >= link["click_limit"]:
+        raise ApiError(400, "limit_reached", "Cannot simulate click: Link has reached its maximum click limit.")
+
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
@@ -707,18 +792,27 @@ def analytics_breakdown():
 
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
-    if short_code in ("favicon.ico", "robots.txt"):
+    if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout"):
         return Response(status=404)
 
-    row = query_one(LINK_SELECT + " WHERE l.short_code = %s", (short_code,))
+    row = query_one(LINK_SELECT + " WHERE l.short_code = %s OR l.custom_alias = %s", (short_code, short_code))
     if not row:
         return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
 
     if row["status"] != "active":
         return Response("<h1>Link Expired or Inactive</h1>", status=410, mimetype="text/html")
 
-    # 1. Password Verification Gate
+    # Enforce Click Cap Before Evaluating Password/Redirect
+    if row["click_limit"] is not None and row["click_count"] >= row["click_limit"]:
+        return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
+
+    # 1. Password Verification Gate with Rate Limiting
     if row["password_hash"]:
+        ip = request.remote_addr or "unknown"
+        if request.method == "POST":
+            if not limiter.allow(f"pw:{short_code}:{ip}", app.config.get("RATE_LIMIT_PASSWORD", 8), app.config.get("RATE_LIMIT_WINDOW_SECONDS", 60)):
+                return Response("<h1>429 — Too Many Password Attempts</h1><p>Please wait 60 seconds before trying again.</p>", status=429, mimetype="text/html")
+
         provided_password = request.form.get("link_password")
         if not provided_password or not check_password_hash(row["password_hash"], provided_password):
             error_html = "<p style='color:#ef4444;font-size:0.85rem;font-weight:600;margin:0.5rem 0;'>Incorrect password. Please try again.</p>" if request.method == "POST" else ""
@@ -743,6 +837,7 @@ def redirect_engine(short_code):
     .gate-card {{
       background: rgba(255, 255, 255, 0.94);
       backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.95);
       padding: 2.5rem 2rem; border-radius: 1.5rem;
       box-shadow: 0 25px 60px -15px rgba(99, 102, 241, 0.18);
@@ -829,7 +924,7 @@ def export_csv():
     writer.writerow(["Title", "Destination", "Short URL", "Clicks", "Status", "Expires At", "Click Limit", "Campaign"])
     for r in rows:
         writer.writerow([
-            r["title"], r["original_url"], short_url_for(r["short_code"]),
+            r["title"], r["original_url"], short_url_for(r["custom_alias"] or r["short_code"]),
             max(0, r["click_count"]), r["status"], r["expires_at"] or "",
             r["click_limit"] or "", r["campaign_name"] or ""
         ])
@@ -865,7 +960,14 @@ def import_csv():
         try:
             dest = validate_destination(row.get("Destination") or row.get("url") or "")
             title = (row.get("Title") or title_from_url(dest)).strip()
+            
+            # Collision-safe code generator
             code = generate_short_code()
+            for _ in range(5):
+                if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
+                    break
+                code = generate_short_code()
+
             db.cursor().execute("""
                 INSERT INTO links (title, original_url, short_code, user_id) VALUES (%s, %s, %s, %s)
             """, (title, dest, code, user["id"]))
@@ -886,12 +988,12 @@ def get_campaign_details(campaign_id):
     if not camp:
         raise ApiError(404, "not_found", "Campaign not found.")
     assigned_links = query_all("""
-        SELECT id, title, short_code, original_url, click_count
+        SELECT id, title, short_code, custom_alias, original_url, click_count
         FROM links
         WHERE campaign_id = %s AND user_id = %s
     """, (campaign_id, user["id"]))
     all_links = query_all("""
-        SELECT id, title, short_code, campaign_id
+        SELECT id, title, short_code, custom_alias, campaign_id
         FROM links
         WHERE user_id = %s
         ORDER BY created_at DESC
@@ -912,6 +1014,8 @@ def assign_campaign_link(campaign_id):
         raise ApiError(404, "not_found", "Campaign not found.")
     data = json_body()
     link_id = data.get("link_id")
+    if not link_id:
+        raise ApiError(400, "invalid_id", "A valid link_id is required.")
     action = data.get("action", "add")
     get_user_link_or_404(link_id, user["id"])
     db = get_db()
