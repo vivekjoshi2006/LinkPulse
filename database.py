@@ -166,8 +166,9 @@ def _create_sqlite_tables(conn):
 
     CREATE TABLE IF NOT EXISTS campaigns (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        tag TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -199,8 +200,23 @@ def _create_sqlite_tables(conn):
         is_bot INTEGER NOT NULL DEFAULT 0,
         country TEXT DEFAULT 'Local Network'
     );
+    """)
 
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(campaigns);")
+    c_cols = [r[1] for r in cur.fetchall()]
+    if c_cols and "user_id" not in c_cols:
+        cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE;")
+
+    cur.execute("PRAGMA table_info(links);")
+    l_cols = [r[1] for r in cur.fetchall()]
+    if l_cols and "user_id" not in l_cols:
+        cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE;")
+
+    conn.executescript("""
     CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code);
+    CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);
+    CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);
     CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON click_events(link_id);
     CREATE INDEX IF NOT EXISTS idx_clicks_time ON click_events(clicked_at);
     """)
@@ -223,9 +239,11 @@ def _create_mysql_tables(cur):
     cur.execute("""
     CREATE TABLE IF NOT EXISTS campaigns (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(120) NOT NULL UNIQUE,
-        tag VARCHAR(60) NOT NULL UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        name VARCHAR(120) NOT NULL,
+        tag VARCHAR(60) NOT NULL,
+        user_id INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     cur.execute("""
@@ -244,7 +262,8 @@ def _create_mysql_tables(cur):
         password_hash VARCHAR(255) NULL,
         status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
         FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_links_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     cur.execute("""
