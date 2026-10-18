@@ -45,19 +45,37 @@ def auto_migrate():
             );
         """)
 
-        # B. Default Admin exists (Prevents FOREIGN KEY failure)
-        cur.execute("""
-            INSERT OR IGNORE INTO users (id, name, username, role, country)
-            VALUES (1, 'Admin', 'CWC', 'Admin', 'India');
-        """)
+        # B. Ensure default Admin user exists in users table
+        cur.execute("SELECT id FROM users WHERE username = 'CWC';")
+        admin_row = cur.fetchone()
+        if not admin_row:
+            cur.execute("""
+                INSERT INTO users (name, username, password_hash, role, country, auth_provider)
+                VALUES ('Admin', 'CWC', ?, 'Admin', 'India', 'system');
+            """, (generate_password_hash("123"),))
+            cur.execute("SELECT id FROM users WHERE username = 'CWC';")
+            admin_row = cur.fetchone()
+        admin_id = admin_row[0] if admin_row else 1
 
-        # C. Ensure links table has user_id column
+        # C. Ensure links table has user_id column and backfill orphan links
         cur.execute("PRAGMA table_info(links);")
         link_cols = [r[1] for r in cur.fetchall()]
         if link_cols and "user_id" not in link_cols:
             cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
+        cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
 
-        # D. Ensure click_events table has country column
+        # D. Ensure campaigns table has user_id column and backfill
+        cur.execute("PRAGMA table_info(campaigns);")
+        camp_cols = [r[1] for r in cur.fetchall()]
+        if camp_cols and "user_id" not in camp_cols:
+            cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL;")
+        cur.execute("UPDATE campaigns SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
+
+        # E. Performance & security indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
+
+        # F. Ensure click_events table has country column
         cur.execute("PRAGMA table_info(click_events);")
         click_cols = [r[1] for r in cur.fetchall()]
         if click_cols and "country" not in click_cols:
@@ -79,7 +97,7 @@ app.teardown_appcontext(close_db)
 LINK_SELECT = """
     SELECT l.id, l.title, l.original_url, l.short_code, l.custom_alias,
            l.created_at, l.expires_at, l.click_limit, l.click_count,
-           l.password_hash, l.campaign_id,
+           l.password_hash, l.campaign_id, l.user_id,
            c.name AS campaign_name, c.tag AS campaign_tag,
            CASE WHEN l.status = 'active' AND l.expires_at IS NOT NULL
                      AND l.expires_at < CURRENT_TIMESTAMP
@@ -120,12 +138,27 @@ def row_to_link(row):
         "campaign_id": row["campaign_id"],
         "campaign_name": row["campaign_name"],
         "campaign_tag": row["campaign_tag"],
+        "user_id": row.get("user_id"),
     }
 
-def get_link_or_404(link_id):
+def get_current_user():
+    if not session.get("authenticated"):
+        raise ApiError(401, "unauthorized", "Authentication required.")
+    uid = session.get("user_id")
+    if not uid:
+        raise ApiError(401, "unauthorized", "Authentication required.")
+    user = query_one("SELECT * FROM users WHERE id = %s", (uid,))
+    if not user:
+        session.clear()
+        raise ApiError(401, "unauthorized", "Session invalid. Please sign in again.")
+    return user
+
+def get_user_link_or_404(link_id, user_id):
     row = query_one(LINK_SELECT + " WHERE l.id = %s", (link_id,))
     if not row:
         raise ApiError(404, "not_found", "Requested short link does not exist.")
+    if row.get("user_id") != user_id:
+        raise ApiError(403, "forbidden", "You do not have permission to access or modify this link.")
     return row
 
 def json_body():
@@ -165,7 +198,7 @@ def handle_404(e):
 @app.errorhandler(Exception)
 def handle_all_exceptions(e):
     error_trace = traceback.format_exc()
-    print("\n🚨 UNHANDLED ERROR:\n", error_trace)
+    print("\n[UNHANDLED ERROR]:\n", error_trace)
     if isinstance(e, ApiError):
         return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
     if request.path.startswith("/api/"):
@@ -198,17 +231,28 @@ def api_login():
     password = (data.get("password") or "").strip()
 
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
+        admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
+        if not admin_user:
+            db = get_db()
+            cur = db.cursor()
+            cur.execute("""
+                INSERT INTO users (name, username, password_hash, role, country, auth_provider)
+                VALUES ('Admin', %s, %s, 'Admin', 'India', 'system')
+            """, (ADMIN_USER, generate_password_hash(ADMIN_PASSWORD)))
+            db.commit()
+            admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
+
         session["authenticated"] = True
-        session["user_id"] = 1
-        session["admin_name"] = "Admin"
-        session["user_role"] = "Admin"
-        session["user_country"] = "India"
+        session["user_id"] = admin_user["id"]
+        session["admin_name"] = admin_user["name"]
+        session["user_role"] = admin_user["role"]
+        session["user_country"] = admin_user["country"]
         return jsonify({
             "data": {
                 "success": True,
-                "name": "Admin",
-                "role": "Admin",
-                "country": "India"
+                "name": admin_user["name"],
+                "role": admin_user["role"],
+                "country": admin_user["country"]
             }
         })
 
@@ -349,21 +393,23 @@ def serve_favicon():
 
 @app.get("/api/links")
 def list_links():
+    user = get_current_user()
     q = (request.args.get("q") or "").strip()
-    sql = LINK_SELECT
-    params = []
+    sql = LINK_SELECT + " WHERE l.user_id = %s"
+    params = [user["id"]]
     if q:
-        sql += " WHERE l.title LIKE %s OR l.original_url LIKE %s OR l.short_code LIKE %s"
+        sql += " AND (l.title LIKE %s OR l.original_url LIKE %s OR l.short_code LIKE %s)"
         p = f"%{q}%"
-        params = [p, p, p]
+        params.extend([p, p, p])
     sql += " ORDER BY l.created_at DESC"
     rows = query_all(sql, params)
     return jsonify({"data": [row_to_link(r) for r in rows]})
 
 @app.post("/api/links")
 def create_link():
+    user = get_current_user()
     ip = request.remote_addr or "unknown"
-    if not limiter.allow(f"create:{ip}", app.config["RATE_LIMIT_CREATE"], app.config["RATE_LIMIT_WINDOW_SECONDS"]):
+    if not limiter.allow(f"create:{user['id']}:{ip}", app.config["RATE_LIMIT_CREATE"], app.config["RATE_LIMIT_WINDOW_SECONDS"]):
         raise ApiError(429, "rate_limited", "Creation limit reached. Please wait a minute.")
 
     data = json_body()
@@ -396,48 +442,32 @@ def create_link():
     password = data.get("password")
     pwd_hash = generate_password_hash(password.strip()) if password and len(password.strip()) >= 3 else None
 
-    # Foreign Key Safe: If campaign exists
+    # Foreign Key Safe: If campaign exists and belongs to this user
     campaign_id = data.get("campaign_id") or None
     if campaign_id:
         try:
             campaign_id = int(campaign_id)
-            if not query_one("SELECT id FROM campaigns WHERE id = %s", (campaign_id,)):
+            if not query_one("SELECT id FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"])):
                 campaign_id = None
         except (ValueError, TypeError):
             campaign_id = None
 
-    # Foreign Key Safe: If user exists
-    user_id = session.get("user_id")
-    if user_id:
-        try:
-            user_id = int(user_id)
-            if not query_one("SELECT id FROM users WHERE id = %s", (user_id,)):
-                user_id = None
-        except (ValueError, TypeError):
-            user_id = None
-
     db = get_db()
     cur = db.cursor()
-
-    try:
-        cur.execute("""
-            INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user_id))
-    except Exception:
-        cur.execute("""
-            INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id))
+    cur.execute("""
+        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user["id"]))
 
     link_id = cur.lastrowid
     db.commit()
 
-    return jsonify({"data": row_to_link(get_link_or_404(link_id))}), 201
+    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))}), 201
 
 @app.patch("/api/links/<int:link_id>")
 def update_link(link_id):
-    current = get_link_or_404(link_id)
+    user = get_current_user()
+    current = get_user_link_or_404(link_id, user["id"])
     data = json_body()
     title = current["title"]
     destination = current["original_url"]
@@ -458,28 +488,30 @@ def update_link(link_id):
     db = get_db()
     db.cursor().execute("""
         UPDATE links SET title = %s, original_url = %s, click_limit = %s, expires_at = %s
-        WHERE id = %s
-    """, (title, destination, click_limit, expires_at, link_id))
+        WHERE id = %s AND user_id = %s
+    """, (title, destination, click_limit, expires_at, link_id, user["id"]))
     db.commit()
-    return jsonify({"data": row_to_link(get_link_or_404(link_id))})
+    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
 @app.patch("/api/links/<int:link_id>/status")
 def toggle_status(link_id):
+    user = get_current_user()
     data = json_body()
     new_status = data.get("status")
     if new_status not in ("active", "disabled"):
         raise ApiError(400, "invalid_status", "Status must be 'active' or 'disabled'.")
-    get_link_or_404(link_id)
+    get_user_link_or_404(link_id, user["id"])
     db = get_db()
-    db.cursor().execute("UPDATE links SET status = %s WHERE id = %s", (new_status, link_id))
+    db.cursor().execute("UPDATE links SET status = %s WHERE id = %s AND user_id = %s", (new_status, link_id, user["id"]))
     db.commit()
-    return jsonify({"data": row_to_link(get_link_or_404(link_id))})
+    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
 @app.delete("/api/links/<int:link_id>")
 def delete_link(link_id):
-    get_link_or_404(link_id)
+    user = get_current_user()
+    get_user_link_or_404(link_id, user["id"])
     db = get_db()
-    db.cursor().execute("DELETE FROM links WHERE id = %s", (link_id,))
+    db.cursor().execute("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
 
@@ -487,10 +519,11 @@ def delete_link(link_id):
 
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
-    link = get_link_or_404(link_id)
+    user = get_current_user()
+    link = get_user_link_or_404(link_id, user["id"])
     db = get_db()
     cur = db.cursor()
-    cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s", (link_id,))
+    cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     country = detect_country(request)
     try:
         cur.execute("""
@@ -509,46 +542,61 @@ def simulate_click(link_id):
 
 @app.get("/api/campaigns")
 def list_campaigns():
+    user = get_current_user()
     rows = query_all("""
         SELECT c.id, c.name, c.tag, c.created_at,
                COUNT(l.id) AS link_count,
                COALESCE(SUM(l.click_count), 0) AS click_count
-        FROM campaigns c LEFT JOIN links l ON l.campaign_id = c.id
+        FROM campaigns c
+        LEFT JOIN links l ON l.campaign_id = c.id AND l.user_id = %s
+        WHERE c.user_id = %s
         GROUP BY c.id, c.name, c.tag, c.created_at
         ORDER BY c.created_at DESC
-    """)
+    """, (user["id"], user["id"]))
     return jsonify({"data": rows})
 
 @app.post("/api/campaigns")
 def create_campaign():
+    user = get_current_user()
     data = json_body()
     name = str(data.get("name") or "").strip()
     tag = slugify(str(data.get("tag") or name)).strip("-")
     if not name:
         raise ApiError(400, "invalid_campaign", "Campaign name is required.")
+    existing = query_one("SELECT id FROM campaigns WHERE (name = %s OR tag = %s) AND user_id = %s", (name, tag, user["id"]))
+    if existing:
+        raise ApiError(409, "conflict", "You already have a campaign with this name or tag.")
     db = get_db()
     cur = db.cursor()
-    cur.execute("INSERT INTO campaigns (name, tag) VALUES (%s, %s)", (name, tag))
+    cur.execute("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (name, tag, user["id"]))
     c_id = cur.lastrowid
     db.commit()
-    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s", (c_id,))}), 201
+    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (c_id, user["id"]))}), 201
 
 @app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
 def update_campaign(campaign_id):
+    user = get_current_user()
+    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
+    if not camp:
+        raise ApiError(404, "not_found", "Campaign not found.")
     data = json_body()
     name = str(data.get("name") or "").strip()
     tag = slugify(str(data.get("tag") or name)).strip("-")
     if not name:
         raise ApiError(400, "invalid_campaign", "Campaign name cannot be empty.")
     db = get_db()
-    db.cursor().execute("UPDATE campaigns SET name = %s, tag = %s WHERE id = %s", (name, tag, campaign_id))
+    db.cursor().execute("UPDATE campaigns SET name = %s, tag = %s WHERE id = %s AND user_id = %s", (name, tag, campaign_id, user["id"]))
     db.commit()
-    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s", (campaign_id,))})
+    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
 
 @app.delete("/api/campaigns/<int:campaign_id>")
 def delete_campaign(campaign_id):
+    user = get_current_user()
+    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
+    if not camp:
+        raise ApiError(404, "not_found", "Campaign not found.")
     db = get_db()
-    db.cursor().execute("DELETE FROM campaigns WHERE id = %s", (campaign_id,))
+    db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
 
@@ -556,25 +604,33 @@ def delete_campaign(campaign_id):
 
 @app.get("/api/analytics/summary")
 def analytics_summary():
+    user = get_current_user()
     stats = query_one("""
         SELECT COUNT(*) AS total_links,
                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_links,
                COALESCE(SUM(click_count), 0) AS total_clicks
         FROM links
-    """)
-    uniques = query_one("SELECT COUNT(DISTINCT ip_hash) AS total_uniques FROM click_events WHERE is_bot = 0")
-    camps = query_one("SELECT COUNT(*) AS total_campaigns FROM campaigns")
+        WHERE user_id = %s
+    """, (user["id"],))
+    uniques = query_one("""
+        SELECT COUNT(DISTINCT ce.ip_hash) AS total_uniques
+        FROM click_events ce
+        JOIN links l ON l.id = ce.link_id
+        WHERE ce.is_bot = 0 AND l.user_id = %s
+    """, (user["id"],))
+    camps = query_one("SELECT COUNT(*) AS total_campaigns FROM campaigns WHERE user_id = %s", (user["id"],))
 
     return jsonify({"data": {
-        "total_links": max(0, stats["total_links"] or 0),
-        "active_links": max(0, stats["active_links"] or 0),
-        "total_clicks": max(0, stats["total_clicks"] or 0),
-        "unique_visitors": max(0, uniques["total_uniques"] or 0),
-        "total_campaigns": max(0, camps["total_campaigns"] or 0),
+        "total_links": max(0, stats["total_links"] or 0) if stats else 0,
+        "active_links": max(0, stats["active_links"] or 0) if stats else 0,
+        "total_clicks": max(0, stats["total_clicks"] or 0) if stats else 0,
+        "unique_visitors": max(0, uniques["total_uniques"] or 0) if uniques else 0,
+        "total_campaigns": max(0, camps["total_campaigns"] or 0) if camps else 0,
     }})
 
 @app.get("/api/analytics/clicks")
 def analytics_clicks():
+    user = get_current_user()
     days = 7
     try:
         days = min(max(int(request.args.get("days", 7)), 1), 90)
@@ -585,11 +641,12 @@ def analytics_clicks():
     start_date = (today - timedelta(days=days - 1)).isoformat()
 
     rows = query_all("""
-        SELECT DATE(clicked_at) AS d, COUNT(*) AS c
-        FROM click_events
-        WHERE is_bot = 0 AND clicked_at >= %s
-        GROUP BY DATE(clicked_at)
-    """, (start_date,))
+        SELECT DATE(ce.clicked_at) AS d, COUNT(*) AS c
+        FROM click_events ce
+        JOIN links l ON l.id = ce.link_id
+        WHERE ce.is_bot = 0 AND ce.clicked_at >= %s AND l.user_id = %s
+        GROUP BY DATE(ce.clicked_at)
+    """, (start_date, user["id"]))
 
     counts = {str(r["d"]): max(0, r["c"]) for r in rows}
     series = []
@@ -601,22 +658,37 @@ def analytics_clicks():
 
 @app.get("/api/analytics/breakdown")
 def analytics_breakdown():
-    total_clicks = query_one("SELECT COUNT(*) as c FROM click_events WHERE is_bot = 0")["c"] or 1
-    total_clicks = max(1, total_clicks)
+    user = get_current_user()
+    total_row = query_one("""
+        SELECT COUNT(*) as c
+        FROM click_events ce
+        JOIN links l ON l.id = ce.link_id
+        WHERE ce.is_bot = 0 AND l.user_id = %s
+    """, (user["id"],))
+    total_clicks = max(1, (total_row["c"] if total_row and total_row["c"] else 0))
 
     sources = query_all("""
-        SELECT COALESCE(NULLIF(referrer, ''), 'Direct / Email') AS source, COUNT(*) AS count
-        FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
-    """)
+        SELECT COALESCE(NULLIF(ce.referrer, ''), 'Direct / Email') AS source, COUNT(*) AS count
+        FROM click_events ce
+        JOIN links l ON l.id = ce.link_id
+        WHERE ce.is_bot = 0 AND l.user_id = %s
+        GROUP BY source ORDER BY count DESC LIMIT 5
+    """, (user["id"],))
     devices = query_all("""
-        SELECT COALESCE(NULLIF(device_type, ''), 'desktop') AS source, COUNT(*) AS count
-        FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
-    """)
+        SELECT COALESCE(NULLIF(ce.device_type, ''), 'desktop') AS source, COUNT(*) AS count
+        FROM click_events ce
+        JOIN links l ON l.id = ce.link_id
+        WHERE ce.is_bot = 0 AND l.user_id = %s
+        GROUP BY source ORDER BY count DESC LIMIT 5
+    """, (user["id"],))
     try:
         countries = query_all("""
-            SELECT COALESCE(NULLIF(country, ''), 'Direct / Local') AS source, COUNT(*) AS count
-            FROM click_events WHERE is_bot = 0 GROUP BY source ORDER BY count DESC LIMIT 5
-        """)
+            SELECT COALESCE(NULLIF(ce.country, ''), 'Direct / Local') AS source, COUNT(*) AS count
+            FROM click_events ce
+            JOIN links l ON l.id = ce.link_id
+            WHERE ce.is_bot = 0 AND l.user_id = %s
+            GROUP BY source ORDER BY count DESC LIMIT 5
+        """, (user["id"],))
     except Exception:
         countries = []
 
@@ -750,7 +822,8 @@ def redirect_engine(short_code):
 
 @app.route("/api/links/export", methods=["GET"])
 def export_csv():
-    rows = query_all(LINK_SELECT + " ORDER BY l.created_at DESC")
+    user = get_current_user()
+    rows = query_all(LINK_SELECT + " WHERE l.user_id = %s ORDER BY l.created_at DESC", (user["id"],))
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["Title", "Destination", "Short URL", "Clicks", "Status", "Expires At", "Click Limit", "Campaign"])
@@ -768,6 +841,7 @@ def export_csv():
 
 @app.route("/api/links/import", methods=["POST"])
 def import_csv():
+    user = get_current_user()
     if "file" not in request.files:
         raise ApiError(400, "invalid_file", "No CSV file uploaded.")
     file = request.files["file"]
@@ -793,8 +867,8 @@ def import_csv():
             title = (row.get("Title") or title_from_url(dest)).strip()
             code = generate_short_code()
             db.cursor().execute("""
-                INSERT INTO links (title, original_url, short_code) VALUES (%s, %s, %s)
-            """, (title, dest, code))
+                INSERT INTO links (title, original_url, short_code, user_id) VALUES (%s, %s, %s, %s)
+            """, (title, dest, code, user["id"]))
             imported += 1
         except Exception as e:
             failed += 1
@@ -807,11 +881,21 @@ def import_csv():
 
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
-    camp = query_one("SELECT * FROM campaigns WHERE id = %s", (campaign_id,))
+    user = get_current_user()
+    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     if not camp:
         raise ApiError(404, "not_found", "Campaign not found.")
-    assigned_links = query_all("SELECT id, title, short_code, original_url, click_count FROM links WHERE campaign_id = %s", (campaign_id,))
-    all_links = query_all("SELECT id, title, short_code, campaign_id FROM links ORDER BY created_at DESC")
+    assigned_links = query_all("""
+        SELECT id, title, short_code, original_url, click_count
+        FROM links
+        WHERE campaign_id = %s AND user_id = %s
+    """, (campaign_id, user["id"]))
+    all_links = query_all("""
+        SELECT id, title, short_code, campaign_id
+        FROM links
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+    """, (user["id"],))
     return jsonify({
         "data": {
             "campaign": camp,
@@ -822,18 +906,23 @@ def get_campaign_details(campaign_id):
 
 @app.route("/api/campaigns/<int:campaign_id>/assign-link", methods=["POST"])
 def assign_campaign_link(campaign_id):
+    user = get_current_user()
+    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
+    if not camp:
+        raise ApiError(404, "not_found", "Campaign not found.")
     data = json_body()
     link_id = data.get("link_id")
     action = data.get("action", "add")
+    get_user_link_or_404(link_id, user["id"])
     db = get_db()
     if action == "add":
-        db.cursor().execute("UPDATE links SET campaign_id = %s WHERE id = %s", (campaign_id, link_id))
+        db.cursor().execute("UPDATE links SET campaign_id = %s WHERE id = %s AND user_id = %s", (campaign_id, link_id, user["id"]))
     else:
-        db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s", (link_id, campaign_id))
+        db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s AND user_id = %s", (link_id, campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"success": True}})
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    print(f"\n🚀 LinkPulse Server running on port {port}\n")
+    print(f"\n[LinkPulse] Server running on port {port}\n")
     app.run(host="0.0.0.0", port=port, debug=False)
