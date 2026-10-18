@@ -768,7 +768,7 @@
         }
         throw new Error(json?.error?.message || `Request failed (${res.status})`);
       }
-      return json?.data !== undefined ? json.data : json;
+      return (json && json.data !== undefined) ? json.data : json;
     }
 
     function toast(msg) {
@@ -867,7 +867,6 @@
     };
 
     function sanitizeDailySeries(raw) {
-      const days = 7;
       const result = [];
       const map = {};
       if (Array.isArray(raw)) {
@@ -876,16 +875,22 @@
         });
       }
 
-      for (let i = days - 1; i >= 0; i--) {
+      // -1 se +5 (Yesterday, Today, aur aage ke 5 din = total 7 points)
+      for (let i = -1; i <= 5; i++) {
         const d = new Date();
-        d.setDate(d.getDate() - i);
+        d.setDate(d.getDate() + i);
 
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         const iso = `${year}-${month}-${day}`;
 
-        const dayLabel = (i === 0) ? 'Today' : (i === 1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' }));
+        let dayLabel = '';
+        if (i === -1) dayLabel = 'Yesterday';
+        else if (i === 0) dayLabel = 'Today';
+        else if (i === 1) dayLabel = 'Tomorrow';
+        else dayLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+
         result.push({
           date: iso,
           label: dayLabel,
@@ -1174,8 +1179,8 @@
 
     async function loadLinks() {
       try {
-        cachedLinks = await api('/api/links');
-        cachedLinks = Array.isArray(data) ? data : []; 
+        const resData = await api('/api/links'); 
+        cachedLinks = Array.isArray(data) ? data : [];
         renderLinks(filteredLinks());
         if (cachedLinks.length > 0) {
           updateSpotlight(cachedLinks[0]);
@@ -1492,44 +1497,28 @@
       }
     }
 
-    async function loadCampaigns() {
+    async function loadLinks() {
       try {
-        const data = await api('/api/campaigns');
-        cachedCampaigns = Array.isArray(data) ? data : [];
-        $('campaignCount').textContent = `${cachedCampaigns.length} campaigns`;
-        $('campaignRows').innerHTML = cachedCampaigns.map(c => `
-          <div class="campaign-tile-card">
-            <div class="camp-top-row">
-              <span class="camp-name">${escapeHTML(c.name)}</span>
-              <div style="display: flex; gap: 0.45rem; align-items: center;">
-                <button class="action-icon-btn" data-camp-edit="${c.id}" title="Edit Campaign" style="width:26px;height:26px;font-size:0.75rem;">✎</button>
-                <button class="camp-del-cross" data-camp-del="${c.id}" title="Delete Campaign">✕</button>
-              </div>
-            </div>
-            <span class="camp-tag">#${escapeHTML(c.tag || 'general')}</span>
-            <div class="camp-footer-metrics">
-              <span><strong>${Number(c.link_count || 0)}</strong> links</span>
-              <span><strong>${Number(c.click_count || 0)}</strong> clicks</span>
-            </div>
-          </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
-
-        $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' + cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+        const resData = await api('/api/links'); 
+        cachedLinks = Array.isArray(resData) ? resData : []; // ✅ Fixed
+        renderLinks(filteredLinks());
+        if (cachedLinks.length > 0) {
+          updateSpotlight(cachedLinks[0]);
+          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
+            inspectLink(cachedLinks[0]);
+          }
+        } else {
+          inspectLink(null);
+          $('spotlightTitle').textContent = 'Select or create a link';
+          $('spotlightDest').textContent = 'https://example.com';
+          $('spotlightShortUrl').value = 'https://linkpulse.io/latest';
+          $('spotlightQrBox').replaceChildren();
+        }
       } catch (err) {
-        console.error('Campaigns error:', err);
-      }
-    }
-
-    $('campaignForm').onsubmit = async e => {
-      e.preventDefault();
-      try {
-        await api('/api/campaigns', { method: 'POST', body: { name: $('campaignName').value.trim(), tag: $('campaignTag').value.trim() } });
-        $('campaignForm').reset();
-        toast('Campaign created.');
-        await Promise.all([loadCampaigns(), refreshDashboard()]);
-      } catch (err) {
+        console.error('Failed to load links:', err);
         toast(err.message);
       }
-    };
+    }
 
     $('campaignRows').addEventListener('click', async e => {
       const editBtn = e.target.closest('[data-camp-edit]');
