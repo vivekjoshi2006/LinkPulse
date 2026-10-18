@@ -152,6 +152,18 @@ def initialize_database(cfg):
 
 def _create_sqlite_tables(conn):
     conn.executescript("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NULL,
+        country TEXT DEFAULT 'India',
+        age INTEGER NULL,
+        role TEXT DEFAULT 'User',
+        auth_provider TEXT DEFAULT 'manual',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS campaigns (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
@@ -166,6 +178,7 @@ def _create_sqlite_tables(conn):
         short_code TEXT NOT NULL UNIQUE,
         custom_alias TEXT UNIQUE,
         campaign_id INTEGER NULL REFERENCES campaigns(id) ON DELETE SET NULL,
+        user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NULL,
         click_limit INTEGER NULL,
@@ -195,6 +208,19 @@ def _create_sqlite_tables(conn):
 
 def _create_mysql_tables(cur):
     cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        username VARCHAR(120) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NULL,
+        country VARCHAR(64) DEFAULT 'India',
+        age INT NULL,
+        role VARCHAR(64) DEFAULT 'User',
+        auth_provider VARCHAR(32) DEFAULT 'manual',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS campaigns (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(120) NOT NULL UNIQUE,
@@ -210,13 +236,15 @@ def _create_mysql_tables(cur):
         short_code VARCHAR(64) NOT NULL UNIQUE,
         custom_alias VARCHAR(64) UNIQUE,
         campaign_id INT NULL,
+        user_id INT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NULL,
         click_limit INT NULL,
         click_count INT NOT NULL DEFAULT 0,
         password_hash VARCHAR(255) NULL,
         status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
-        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     cur.execute("""
@@ -230,6 +258,7 @@ def _create_mysql_tables(cur):
         browser VARCHAR(64) NULL,
         ip_hash VARCHAR(64) NULL,
         is_bot TINYINT(1) NOT NULL DEFAULT 0,
+        country VARCHAR(64) DEFAULT 'Local Network',
         FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
