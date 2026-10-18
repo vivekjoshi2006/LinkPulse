@@ -631,7 +631,6 @@ def assign_campaign_link(campaign_id):
     return jsonify({"data": {"success": True}})
 
 if __name__ == "__main__":
-    driver = initialize_database(Config)
     port = int(os.getenv("PORT", 5000))
-    print(f"\n🚀 LinkPulse Server running on http://127.0.0.1:{port} [{driver}]\n")
+    print(f"\n🚀 LinkPulse Server running on port {port}\n")
     app.run(host="0.0.0.0", port=port, debug=False)
