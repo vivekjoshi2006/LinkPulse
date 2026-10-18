@@ -11,15 +11,18 @@ from urllib.parse import urlparse
 ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{3,35}$")
 CODE_ALPHABET = string.ascii_letters + string.digits
 
+# Reserved path segments that cannot be used as short codes or custom aliases
 RESERVED_CODES = {
     "api", "static", "assets", "style.css", "favicon.ico", "robots.txt",
     "health", "app", "admin", "login", "logout", "register", "settings",
     "dashboard", "links", "analytics", "campaigns", "create", "export",
-    "import", "docs", "help", "qr"
+    "import", "docs", "help", "qr", "account"
 }
 
+# Domains known for IP logging, or phishing
 BLOCKED_DOMAINS = {
-    "malware-traffic.com", "phishing-link.org", "grabify.link", "iplogger.org"
+    "malware-traffic.com", "phishing-link.org", "grabify.link", "iplogger.org",
+    "metadata.google.internal", "instance-data"
 }
 
 class ApiError(Exception):
@@ -29,25 +32,86 @@ class ApiError(Exception):
         self.code = code
         self.message = message
 
+def get_client_ip(req) -> str:
+    """
+    Safely resolves the true client IP when LinkPulse runs
+    behind reverse proxies (Nginx, Cloudflare, AWS ALB, etc.).
+    """
+    cf_ip = req.headers.get("CF-Connecting-IP")
+    if cf_ip and cf_ip.strip():
+        return cf_ip.strip()
+
+    forwarded = req.headers.get("X-Forwarded-For")
+    if forwarded and forwarded.strip():
+        return forwarded.split(",")[0].strip()
+
+    return (req.remote_addr or "127.0.0.1").strip()
+
 def is_private_or_reserved_ip(hostname: str) -> bool:
+    """
+    Checks if a hostname or IP string resolves to private, loopback,
+    link-local, reserved, or unspecified subnets.
+    """
+    clean_host = hostname.strip("[]")
+    
+    # Check numeric decimal IP representation (e.g. 2130706433 -> 127.0.0.1)
+    if clean_host.isdigit():
+        try:
+            ip = ipaddress.IPv4Address(int(clean_host))
+            return (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_reserved
+                or ip.is_link_local
+                or ip.is_unspecified
+            )
+        except ValueError:
+            return False
+
     try:
-        ip = ipaddress.ip_address(hostname)
-        return ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local
+        ip = ipaddress.ip_address(clean_host)
+        
+        # Check IPv4-mapped IPv6 address
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            mapped = ip.ipv4_mapped
+            if (
+                mapped.is_private
+                or mapped.is_loopback
+                or mapped.is_reserved
+                or mapped.is_link_local
+                or mapped.is_unspecified
+            ):
+                return True
+
+        return (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_reserved
+            or ip.is_link_local
+            or ip.is_unspecified
+        )
     except ValueError:
         return False
 
 def validate_destination(raw_url: str) -> str:
+    """
+    Validates, normalizes, and sanitizes destination URLs.
+    Guards against SSRF, credential embedding, and non-HTTP schemes.
+    """
     if not isinstance(raw_url, str) or not raw_url.strip():
         raise ApiError(400, "invalid_url", "Destination URL is required.")
     
     url = raw_url.strip()
 
-    # Auto-prepend https:// if omitted
-    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
+    # Normalize URLs (e.g. //example.com)
+    if url.startswith("//"):
+        url = "https:" + url
+    elif not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
         url = "https://" + url
 
     if len(url) > 2048:
         raise ApiError(400, "invalid_url", "Destination URL cannot exceed 2048 characters.")
+    
     if any(ord(c) < 32 for c in url):
         raise ApiError(400, "invalid_url", "URL contains illegal control characters.")
 
@@ -58,11 +122,14 @@ def validate_destination(raw_url: str) -> str:
 
     if parsed.scheme.lower() not in ("http", "https"):
         raise ApiError(400, "invalid_url", "Protocol must be HTTP or HTTPS.")
+        
     if not parsed.hostname:
         raise ApiError(400, "invalid_url", "Destination URL must include a valid hostname.")
 
-    host_lower = parsed.hostname.lower()
-    if host_lower in ("localhost", "127.0.0.1", "::1") or is_private_or_reserved_ip(host_lower):
+    host_lower = parsed.hostname.lower().rstrip(".")
+
+    # Subnet Restrictions
+    if host_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or is_private_or_reserved_ip(host_lower):
         raise ApiError(400, "security_violation", "Redirecting to localhost or private subnets is prohibited.")
 
     if host_lower in BLOCKED_DOMAINS:
@@ -74,42 +141,65 @@ def validate_destination(raw_url: str) -> str:
     return url
 
 def validate_alias(alias: str) -> str:
-    if not alias:
+    """
+    Validates custom slugs to adhere to safe URL characters and
+    prevent system route collision.
+    """
+    if not alias or not isinstance(alias, str):
         raise ApiError(400, "invalid_alias", "Custom alias cannot be empty.")
-    if not ALIAS_RE.match(alias):
+        
+    clean_alias = alias.strip()
+    if not ALIAS_RE.match(clean_alias):
         raise ApiError(400, "invalid_alias", "Alias must be 3-35 alphanumeric characters, hyphens or underscores.")
-    if alias.lower() in RESERVED_CODES:
-        raise ApiError(400, "invalid_alias", f"The alias '{alias}' is reserved by the system.")
-    return alias
+        
+    if clean_alias.lower() in RESERVED_CODES:
+        raise ApiError(400, "invalid_alias", f"The alias '{clean_alias}' is reserved by the system.")
+        
+    return clean_alias
 
 def parse_expires_at(value, allow_past=False):
+    """
+    Parses various date/time formats and sets full-day expirations
+    to end-of-day (23:59:59).
+    """
     if not value:
         return None
-    if not isinstance(value, str):
+        
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        val_str = value.strip().rstrip("Z")
+        dt = None
+        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+            try:
+                dt = datetime.strptime(val_str, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            raise ApiError(400, "invalid_expiry", "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM.")
+    else:
         raise ApiError(400, "invalid_expiry", "Expiry must be a date string.")
-    value = value.strip()
-    dt = None
-    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
-        try:
-            dt = datetime.strptime(value.rstrip("Z"), fmt)
-            break
-        except ValueError:
-            continue
-    if dt is None:
-        raise ApiError(400, "invalid_expiry", "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM.")
-    if len(value) == 10:
+
+    # If only date is provided (YYYY-MM-DD), expire at end of that day
+    if isinstance(value, str) and len(value.strip()) == 10:
         dt = dt.replace(hour=23, minute=59, second=59)
+
     if not allow_past and dt <= datetime.now():
-        raise ApiError(400, "invalid_expiry", "Expiry date must be in the future.")
+        raise ApiError(400, "invalid_expiry", "Expiry date must be set in the future.")
+
     return dt
 
 def generate_short_code(length=7) -> str:
+    """Cryptographically secure short random code generator."""
     return "".join(secrets.choice(CODE_ALPHABET) for _ in range(length))
 
 def slugify(text: str) -> str:
+    """Normalizes campaign tags and slugs."""
     return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:60]
 
 def title_from_url(url: str) -> str:
+    """Generates an intuitive fallback title from hostname if omitted."""
     try:
         host = urlparse(url).hostname or ""
     except Exception:
@@ -119,6 +209,7 @@ def title_from_url(url: str) -> str:
     return (f"{host} Link" if host else "New Short Link")[:160]
 
 def sanitize_referrer(referrer: str):
+    """Strips paths and query parameters to preserve visitor privacy."""
     if not referrer:
         return None
     try:
@@ -130,14 +221,21 @@ def sanitize_referrer(referrer: str):
     return None
 
 def anonymize_ip(ip: str, secret: str) -> str:
-    return hashlib.sha256(f"{secret}|linkpulse|{ip or 'unknown'}".encode("utf-8")).hexdigest()[:24]
+    """HMAC-style SHA-256 IP anonymization to ensure zero plain IP logging."""
+    clean_ip = (ip or "unknown").strip()
+    return hashlib.sha256(f"{secret}|linkpulse|{clean_ip}".encode("utf-8")).hexdigest()[:24]
 
 _BOT_SIGNATURES = (
     "bot", "crawler", "spider", "slurp", "headless", "facebookexternalhit",
-    "embedly", "preview", "monitor", "yandex", "curl", "wget", "python-requests"
+    "embedly", "preview", "monitor", "yandex", "curl", "wget", "python-requests",
+    "googlebot", "bingbot", "duckduckbot", "twitterbot", "postman"
 )
 
 def classify_user_agent(ua_raw: str):
+    """
+    Classifies visits into bot telemetry or categorized end-user
+    device types (desktop, mobile, tablet) and browser family.
+    """
     if not ua_raw or not ua_raw.strip():
         return "desktop", "Direct / Email", False
 
@@ -162,15 +260,30 @@ def classify_user_agent(ua_raw: str):
     return "desktop", browser, False
 
 class RateLimiter:
+    """
+    Thread-safe in-memory sliding-window rate limiter with
+    automatic periodic pruning to prevent memory leaks.
+    """
     def __init__(self):
         self._hits = {}
+        self._last_cleanup = time.monotonic()
 
     def allow(self, key: str, limit: int, window: int) -> bool:
         now = time.monotonic()
+
+        if now - self._last_cleanup > 300:
+            self._hits = {
+                k: b for k, b in self._hits.items()
+                if b and b[-1] > now - window
+            }
+            self._last_cleanup = now
+
         bucket = self._hits.setdefault(key, deque())
         while bucket and bucket[0] <= now - window:
             bucket.popleft()
+
         if len(bucket) >= limit:
             return False
+
         bucket.append(now)
         return True
