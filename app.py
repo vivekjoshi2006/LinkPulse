@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import re
 import sqlite3
 import traceback
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from config import Config
 from database import close_db, get_db, get_engine, initialize_database, query_all, query_one
 from helpers import (
     ApiError, RateLimiter, anonymize_ip, classify_user_agent,
-    generate_short_code, parse_expires_at, sanitize_referrer,
+    generate_short_code, get_client_ip, parse_expires_at, sanitize_referrer,
     slugify, title_from_url, validate_alias, validate_destination
 )
 
@@ -19,10 +20,11 @@ app = Flask(__name__, static_folder=None)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
 
-# 1. Initialize Tables on Startup
+ADMIN_USER = os.getenv("ADMIN_USER", "CWC")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
+
 initialize_database(Config)
 
-# 2. Auto-Migrate DB on Startup
 def auto_migrate():
     try:
         if get_engine() == "mysql":
@@ -31,7 +33,6 @@ def auto_migrate():
         conn = sqlite3.connect(Config.SQLITE_PATH)
         cur = conn.cursor()
 
-        # A. Ensure users table exists
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,37 +47,32 @@ def auto_migrate():
             );
         """)
 
-        # B. Ensure default Admin user exists in users table
-        cur.execute("SELECT id FROM users WHERE username = 'CWC';")
+        cur.execute("SELECT id FROM users WHERE username = ?;", (ADMIN_USER,))
         admin_row = cur.fetchone()
         if not admin_row:
             cur.execute("""
                 INSERT INTO users (name, username, password_hash, role, country, auth_provider)
-                VALUES ('Admin', 'CWC', ?, 'Admin', 'India', 'system');
-            """, (generate_password_hash("123"),))
-            cur.execute("SELECT id FROM users WHERE username = 'CWC';")
+                VALUES ('Admin', ?, ?, 'Admin', 'India', 'system');
+            """, (ADMIN_USER, generate_password_hash(ADMIN_PASSWORD)))
+            cur.execute("SELECT id FROM users WHERE username = ?;", (ADMIN_USER,))
             admin_row = cur.fetchone()
         admin_id = admin_row[0] if admin_row else 1
 
-        # C. Ensure links table has user_id column
         cur.execute("PRAGMA table_info(links);")
         link_cols = [r[1] for r in cur.fetchall()]
         if link_cols and "user_id" not in link_cols:
             cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
         cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
 
-        # D. Campaigns table has user_id column and backfill
         cur.execute("PRAGMA table_info(campaigns);")
         camp_cols = [r[1] for r in cur.fetchall()]
         if camp_cols and "user_id" not in camp_cols:
             cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL;")
         cur.execute("UPDATE campaigns SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
 
-        # E. Performance & security indexes
         cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
 
-        # F. click_events table has country column
         cur.execute("PRAGMA table_info(click_events);")
         click_cols = [r[1] for r in cur.fetchall()]
         if click_cols and "country" not in click_cols:
@@ -169,22 +165,32 @@ def json_body():
     return payload
 
 def detect_country(req):
+    ip = get_client_ip(req)
+    if ip in ("127.0.0.1", "::1", "localhost"):
+        lang = (req.headers.get("Accept-Language") or "").lower()
+        return "India (Local Dev)" if "in" in lang else "Local Network"
+
     cf = req.headers.get("CF-IPCountry")
     if cf and len(cf) == 2:
         return cf.upper()
-    lang = (req.headers.get("Accept-Language") or "").lower()
-    if "in" in lang: return "India"
-    if "us" in lang: return "United States"
-    if "gb" in lang or "uk" in lang: return "United Kingdom"
-    if "ca" in lang: return "Canada"
-    if "de" in lang: return "Germany"
-    if "fr" in lang: return "France"
-    if "au" in lang: return "Australia"
-    if req.remote_addr in ("127.0.0.1", "::1", "localhost"):
-        return "India (Local Dev)" if "in" in lang else "Local Network"
-    return "Global / Direct"
 
-# ----------------- Error Handlers -----------------
+    lang = (req.headers.get("Accept-Language") or "").lower()
+    if re.search(r"\b(in|hi|en-in)\b", lang):
+        return "India"
+    if re.search(r"\b(us|en-us)\b", lang):
+        return "United States"
+    if re.search(r"\b(gb|uk|en-gb)\b", lang):
+        return "United Kingdom"
+    if re.search(r"\b(ca|en-ca|fr-ca)\b", lang):
+        return "Canada"
+    if re.search(r"\b(de|de-de)\b", lang):
+        return "Germany"
+    if re.search(r"\b(fr|fr-fr)\b", lang):
+        return "France"
+    if re.search(r"\b(au|en-au)\b", lang):
+        return "Australia"
+
+    return "Global / Direct"
 
 @app.errorhandler(ApiError)
 def handle_api_error(e):
@@ -213,11 +219,6 @@ def handle_all_exceptions(e):
         status=500,
         mimetype="text/html"
     )
-
-# ----------------- Credentials & Auth Routes -----------------
-
-ADMIN_USER = os.getenv("ADMIN_USER", "CWC")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
 
 @app.route("/login", methods=["GET"])
 def serve_login():
@@ -348,7 +349,6 @@ def api_google_auth():
         role = "Analyst"
         country = "India"
     else:
-        # Prevent taking over password-based accounts without credentials
         if user.get("auth_provider") != "google" and user.get("password_hash"):
             raise ApiError(403, "forbidden", "An account with this email exists using password authentication. Please sign in with your password.")
         user_id = user["id"]
@@ -376,8 +376,6 @@ def api_google_auth():
 def logout():
     session.clear()
     return redirect("/login")
-
-# ----------------- Account Settings Profile API -----------------
 
 @app.route("/api/account", methods=["GET", "PATCH"])
 def account_settings():
@@ -420,8 +418,6 @@ def account_settings():
         }
     })
 
-# ----------------- Static Asset Routes -----------------
-
 @app.get("/")
 def serve_index():
     if not session.get("authenticated"):
@@ -440,8 +436,6 @@ def serve_group_logo():
 def serve_favicon():
     return Response(status=204)
 
-# ----------------- Link Core API -----------------
-
 @app.get("/api/links")
 def list_links():
     user = get_current_user()
@@ -459,7 +453,7 @@ def list_links():
 @app.post("/api/links")
 def create_link():
     user = get_current_user()
-    ip = request.remote_addr or "unknown"
+    ip = get_client_ip(request)
     if not limiter.allow(f"create:{user['id']}:{ip}", app.config["RATE_LIMIT_CREATE"], app.config["RATE_LIMIT_WINDOW_SECONDS"]):
         raise ApiError(429, "rate_limited", "Creation limit reached. Please wait a minute.")
 
@@ -480,7 +474,7 @@ def create_link():
                 break
             code = generate_short_code()
 
-    expires_at = parse_expires_at(data.get("expires_at"))
+    expires_at = parse_expires_at(data.get("expires_at"), allow_past=False)
     click_limit = data.get("click_limit")
     if click_limit:
         try:
@@ -539,7 +533,7 @@ def update_link(link_id):
         click_limit = int(val) if val not in (None, "") else None
 
     if "expires_at" in data:
-        expires_at = parse_expires_at(data.get("expires_at"))
+        expires_at = parse_expires_at(data.get("expires_at"), allow_past=True)
 
     if "campaign_id" in data:
         cid = data.get("campaign_id")
@@ -552,14 +546,16 @@ def update_link(link_id):
         else:
             campaign_id = None
 
-    if "password" in data:
+    if "clear_password" in data and data["clear_password"]:
+        pwd_hash = None
+    elif "password" in data:
         pw = str(data.get("password") or "").strip()
         if pw:
             if len(pw) < 3:
                 raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
             pwd_hash = generate_password_hash(pw)
-        else:
-            pwd_hash = None  # Clear password protection
+        elif data.get("password") is None or data.get("password") == "":
+            pwd_hash = None
 
     db = get_db()
     db.cursor().execute("""
@@ -593,8 +589,6 @@ def delete_link(link_id):
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
 
-# ----------------- Instant Click Simulator Endpoint -----------------
-
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
     user = get_current_user()
@@ -610,20 +604,19 @@ def simulate_click(link_id):
     cur = db.cursor()
     cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     country = detect_country(request)
+    sim_ip_hash = anonymize_ip(f"simulated-{user['id']}-{datetime.now().timestamp()}", app.config["SECRET_KEY"])
     try:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0, %s)
-        """, (link_id, country))
+            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', %s, 0, %s)
+        """, (link_id, sim_ip_hash, country))
     except Exception:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
-            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0)
-        """, (link_id,))
+            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', %s, 0)
+        """, (link_id, sim_ip_hash))
     db.commit()
     return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
-
-# ----------------- Campaign Management -----------------
 
 @app.get("/api/campaigns")
 def list_campaigns():
@@ -681,11 +674,10 @@ def delete_campaign(campaign_id):
     if not camp:
         raise ApiError(404, "not_found", "Campaign not found.")
     db = get_db()
+    db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE campaign_id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
-
-# ----------------- Analytics & Graph Telemetry -----------------
 
 @app.get("/api/analytics/summary")
 def analytics_summary():
@@ -788,8 +780,6 @@ def analytics_breakdown():
         "countries": present(countries)
     }})
 
-# ----------------- Redirection Engine -----------------
-
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
     if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout"):
@@ -805,9 +795,9 @@ def redirect_engine(short_code):
     if row["click_limit"] is not None and row["click_count"] >= row["click_limit"]:
         return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
-    # 1. Password Verification Gate with Rate Limiting
+    ip = get_client_ip(request)
+
     if row["password_hash"]:
-        ip = request.remote_addr or "unknown"
         if request.method == "POST":
             if not limiter.allow(f"pw:{short_code}:{ip}", app.config.get("RATE_LIMIT_PASSWORD", 8), app.config.get("RATE_LIMIT_WINDOW_SECONDS", 60)):
                 return Response("<h1>429 — Too Many Password Attempts</h1><p>Please wait 60 seconds before trying again.</p>", status=429, mimetype="text/html")
@@ -878,11 +868,10 @@ def redirect_engine(short_code):
 </body>
 </html>""", 200
 
-    # 2. Telemetry and Bot Classification
     ua = request.headers.get("User-Agent") or ""
     device, browser, is_bot = classify_user_agent(ua)
     ref = sanitize_referrer(request.headers.get("Referer"))
-    ip_hash = anonymize_ip(request.remote_addr, app.config["SECRET_KEY"])
+    ip_hash = anonymize_ip(ip, app.config["SECRET_KEY"])
     country = detect_country(request)
 
     db = get_db()
@@ -910,9 +899,8 @@ def redirect_engine(short_code):
 
     db.commit()
 
-    return redirect(row["original_url"], code=302)
-
-# ----------------- CSV Import / Export -----------------
+    code = 303 if request.method == "POST" else 302
+    return redirect(row["original_url"], code=code)
 
 @app.route("/api/links/export", methods=["GET"])
 def export_csv():
@@ -952,13 +940,23 @@ def import_csv():
         raise ApiError(400, "invalid_csv", "CSV is empty or has no header row.")
     imported, failed, errors = 0, 0, []
 
+    def get_csv_col(row, *aliases):
+        normalized = {str(k).strip().lower(): v for k, v in row.items() if k is not None}
+        for a in aliases:
+            val = normalized.get(a.lower())
+            if val is not None and str(val).strip():
+                return str(val).strip()
+        return ""
+
     db = get_db()
     for idx, row in enumerate(reader, start=2):
         if idx - 1 > app.config["MAX_IMPORT_ROWS"]:
             break
         try:
-            dest = validate_destination(row.get("Destination") or row.get("url") or "")
-            title = (row.get("Title") or title_from_url(dest)).strip()
+            dest_raw = get_csv_col(row, "Destination", "destination", "url", "URL", "link", "original_url")
+            dest = validate_destination(dest_raw)
+            title_raw = get_csv_col(row, "Title", "title", "name")
+            title = (title_raw or title_from_url(dest)).strip()
             
             code = generate_short_code()
             for _ in range(5):
@@ -976,8 +974,6 @@ def import_csv():
 
     db.commit()
     return jsonify({"data": {"imported": imported, "failed": failed, "errors": errors[:20]}})
-
-# ----------------- Campaign Links Details & Assignment -----------------
 
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
