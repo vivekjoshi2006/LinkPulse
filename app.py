@@ -124,6 +124,13 @@ def handle_404(e):
         return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
     return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
 
+import traceback
+
+@app.errorhandler(500)
+def handle_500(e):
+    print("\n🚨 500 CRASH TRACEBACK:\n", traceback.format_exc())
+    return Response(f"<h1>500 Internal Server Error</h1><p>{str(e)}</p>", status=500, mimetype="text/html")
+
 # ----------------- Credentials & Auth Routes -----------------
 
 ADMIN_USER = os.getenv("ADMIN_USER", "CWC")
