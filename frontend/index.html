@@ -1,1030 +1,1546 @@
-import csv
-import io
-import os
-import sqlite3
-import traceback
-from datetime import datetime, timedelta
-from flask import Flask, Response, jsonify, redirect, request, send_from_directory, session
-from werkzeug.security import check_password_hash, generate_password_hash
-
-from config import Config
-from database import close_db, get_db, get_engine, initialize_database, query_all, query_one
-from helpers import (
-    ApiError, RateLimiter, anonymize_ip, classify_user_agent,
-    generate_short_code, parse_expires_at, sanitize_referrer,
-    slugify, title_from_url, validate_alias, validate_destination
-)
-
-app = Flask(__name__, static_folder=None)
-app.config.from_object(Config)
-app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
-
-# 1. Initialize Tables on Startup
-initialize_database(Config)
-
-# 2. Auto-Migrate DB on Startup
-def auto_migrate():
-    try:
-        if get_engine() == "mysql":
-            return
-
-        conn = sqlite3.connect(Config.SQLITE_PATH)
-        cur = conn.cursor()
-
-        # A. Ensure users table exists
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NULL,
-                country TEXT DEFAULT 'India',
-                age INTEGER NULL,
-                role TEXT DEFAULT 'User',
-                auth_provider TEXT DEFAULT 'manual',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-        # B. Ensure default Admin user exists in users table
-        cur.execute("SELECT id FROM users WHERE username = 'CWC';")
-        admin_row = cur.fetchone()
-        if not admin_row:
-            cur.execute("""
-                INSERT INTO users (name, username, password_hash, role, country, auth_provider)
-                VALUES ('Admin', 'CWC', ?, 'Admin', 'India', 'system');
-            """, (generate_password_hash("123"),))
-            cur.execute("SELECT id FROM users WHERE username = 'CWC';")
-            admin_row = cur.fetchone()
-        admin_id = admin_row[0] if admin_row else 1
-
-        # C. Ensure links table has user_id column
-        cur.execute("PRAGMA table_info(links);")
-        link_cols = [r[1] for r in cur.fetchall()]
-        if link_cols and "user_id" not in link_cols:
-            cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
-        cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
-
-        # D. Campaigns table has user_id column and backfill
-        cur.execute("PRAGMA table_info(campaigns);")
-        camp_cols = [r[1] for r in cur.fetchall()]
-        if camp_cols and "user_id" not in camp_cols:
-            cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL;")
-        cur.execute("UPDATE campaigns SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
-
-        # E. Performance & security indexes
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
-
-        # F. click_events table has country column
-        cur.execute("PRAGMA table_info(click_events);")
-        click_cols = [r[1] for r in cur.fetchall()]
-        if click_cols and "country" not in click_cols:
-            cur.execute("ALTER TABLE click_events ADD COLUMN country TEXT DEFAULT 'Local Network';")
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print("Auto-migration notice:", e)
-
-auto_migrate()
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
-
-limiter = RateLimiter()
-app.teardown_appcontext(close_db)
-
-LINK_SELECT = """
-    SELECT l.id, l.title, l.original_url, l.short_code, l.custom_alias,
-           l.created_at, l.expires_at, l.click_limit, l.click_count,
-           l.password_hash, l.campaign_id, l.user_id,
-           c.name AS campaign_name, c.tag AS campaign_tag,
-           CASE WHEN l.status = 'active' AND l.expires_at IS NOT NULL
-                     AND l.expires_at < CURRENT_TIMESTAMP
-                THEN 'expired' ELSE l.status END AS status
-    FROM links l LEFT JOIN campaigns c ON c.id = l.campaign_id
-"""
-
-def iso(val):
-    if isinstance(val, datetime):
-        return val.isoformat(timespec="seconds")
-    return val
-
-def short_url_for(code):
-    base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
-    if not base or "127.0.0.1" in base or "localhost" in base:
-        try:
-            proto = request.headers.get("X-Forwarded-Proto", request.scheme)
-            host = request.host
-            base = f"{proto}://{host}"
-        except Exception:
-            base = "http://localhost:5000"
-    return f"{base}/{code}"
-
-def row_to_link(row):
-    return {
-        "id": row["id"],
-        "title": row["title"],
-        "original_url": row["original_url"],
-        "short_code": row["short_code"],
-        "custom_alias": row["custom_alias"],
-        "short_url": short_url_for(row["custom_alias"] or row["short_code"]),
-        "created_at": iso(row["created_at"]),
-        "expires_at": iso(row["expires_at"]),
-        "click_limit": row["click_limit"],
-        "click_count": max(0, row["click_count"]),
-        "has_password": bool(row["password_hash"]),
-        "status": row["status"],
-        "campaign_id": row["campaign_id"],
-        "campaign_name": row["campaign_name"],
-        "campaign_tag": row["campaign_tag"],
-        "user_id": row.get("user_id"),
-    }
-
-def get_current_user():
-    if not session.get("authenticated"):
-        raise ApiError(401, "unauthorized", "Authentication required.")
-    uid = session.get("user_id")
-    if not uid:
-        raise ApiError(401, "unauthorized", "Authentication required.")
-    user = query_one("SELECT * FROM users WHERE id = %s", (uid,))
-    if not user:
-        session.clear()
-        raise ApiError(401, "unauthorized", "Session invalid. Please sign in again.")
-    return user
-
-def get_user_link_or_404(link_id, user_id):
-    row = query_one(LINK_SELECT + " WHERE l.id = %s", (link_id,))
-    if not row:
-        raise ApiError(404, "not_found", "Requested short link does not exist.")
-    if row.get("user_id") != user_id:
-        raise ApiError(403, "forbidden", "You do not have permission to access or modify this link.")
-    return row
-
-def json_body():
-    payload = request.get_json(silent=True)
-    if payload is None or not isinstance(payload, dict):
-        raise ApiError(400, "bad_request", "Expected valid JSON request body.")
-    return payload
-
-def detect_country(req):
-    cf = req.headers.get("CF-IPCountry")
-    if cf and len(cf) == 2:
-        return cf.upper()
-    lang = (req.headers.get("Accept-Language") or "").lower()
-    if "in" in lang: return "India"
-    if "us" in lang: return "United States"
-    if "gb" in lang or "uk" in lang: return "United Kingdom"
-    if "ca" in lang: return "Canada"
-    if "de" in lang: return "Germany"
-    if "fr" in lang: return "France"
-    if "au" in lang: return "Australia"
-    if req.remote_addr in ("127.0.0.1", "::1", "localhost"):
-        return "India (Local Dev)" if "in" in lang else "Local Network"
-    return "Global / Direct"
-
-# ----------------- Error Handlers -----------------
-
-@app.errorhandler(ApiError)
-def handle_api_error(e):
-    return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
-
-@app.errorhandler(404)
-def handle_404(e):
-    if request.path.startswith("/api/"):
-        return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
-    return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
-
-@app.errorhandler(Exception)
-def handle_all_exceptions(e):
-    error_trace = traceback.format_exc()
-    print("\n[UNHANDLED ERROR]:\n", error_trace)
-    if isinstance(e, ApiError):
-        return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
-    if request.path.startswith("/api/"):
-        return jsonify({"error": {"code": "internal_error", "message": str(e)}}), 500
-    return Response(
-        f"""<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;">
-        <h1 style="color:#dc2626;">500 Internal Server Error</h1>
-        <p><strong>Error Details:</strong> {str(e)}</p>
-        <pre style="background:#fee2e2;padding:1rem;border-radius:8px;overflow-x:auto;">{error_trace}</pre>
-        </body></html>""",
-        status=500,
-        mimetype="text/html"
-    )
-
-# ----------------- Credentials & Auth Routes -----------------
-
-ADMIN_USER = os.getenv("ADMIN_USER", "CWC")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
-
-@app.route("/login", methods=["GET"])
-def serve_login():
-    if session.get("authenticated"):
-        return redirect("/")
-    return send_from_directory(FRONTEND_DIR, "login.html")
-
-@app.post("/api/login")
-def api_login():
-    data = json_body()
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
-
-    if username == ADMIN_USER and password == ADMIN_PASSWORD:
-        admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
-        if not admin_user:
-            db = get_db()
-            cur = db.cursor()
-            cur.execute("""
-                INSERT INTO users (name, username, password_hash, role, country, auth_provider)
-                VALUES ('Admin', %s, %s, 'Admin', 'India', 'system')
-            """, (ADMIN_USER, generate_password_hash(ADMIN_PASSWORD)))
-            db.commit()
-            admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
-
-        session["authenticated"] = True
-        session["user_id"] = admin_user["id"]
-        session["admin_name"] = admin_user["name"]
-        session["user_role"] = admin_user["role"]
-        session["user_country"] = admin_user["country"]
-        return jsonify({
-            "data": {
-                "success": True,
-                "name": admin_user["name"],
-                "role": admin_user["role"],
-                "country": admin_user["country"],
-                "email": f"{ADMIN_USER.lower()}@linkpulse.io"
-            }
-        })
-
-    user = query_one("SELECT * FROM users WHERE username = %s", (username,))
-    if user and user.get("password_hash") and check_password_hash(user["password_hash"], password):
-        session["authenticated"] = True
-        session["user_id"] = user["id"]
-        session["admin_name"] = user["name"]
-        session["user_role"] = user["role"]
-        session["user_country"] = user["country"]
-        return jsonify({
-            "data": {
-                "success": True,
-                "name": user["name"],
-                "role": user["role"],
-                "country": user["country"],
-                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
-            }
-        })
-
-    raise ApiError(401, "unauthorized", "Invalid username or password.")
-
-@app.post("/api/register")
-def api_register():
-    data = json_body()
-    name = (data.get("name") or "").strip()
-    username = (data.get("username") or "").strip()
-    country = (data.get("country") or "India").strip()
-    age = data.get("age")
-    role = (data.get("role") or "User").strip()
-    password = (data.get("password") or "").strip()
-
-    if not name or not username or not password:
-        raise ApiError(400, "bad_request", "Name, username, and password are required.")
-    if len(password) < 3:
-        raise ApiError(400, "bad_request", "Password must be at least 3 characters.")
-
-    if query_one("SELECT id FROM users WHERE username = %s", (username,)):
-        raise ApiError(409, "conflict", "Username is already registered. Please sign in.")
-
-    pwd_hash = generate_password_hash(password)
-    try:
-        age_int = int(age) if age is not None and str(age).strip() != "" else None
-    except ValueError:
-        age_int = None
-
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("""
-        INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
-        VALUES (%s, %s, %s, %s, %s, %s, 'manual')
-    """, (name, username, pwd_hash, country, age_int, role))
-    user_id = cur.lastrowid
-    db.commit()
-
-    session["authenticated"] = True
-    session["user_id"] = user_id
-    session["admin_name"] = name
-    session["user_role"] = role
-    session["user_country"] = country
-
-    return jsonify({
-        "data": {
-            "success": True,
-            "name": name,
-            "role": role,
-            "country": country,
-            "email": username if "@" in username else f"{username.lower()}@linkpulse.io"
-        }
-    }), 201
-
-@app.post("/api/auth/google")
-def api_google_auth():
-    data = json_body()
-    email = (data.get("email") or "").strip().lower()
-    name = (data.get("name") or "Google User").strip()
-    
-    if not email or "@" not in email:
-        raise ApiError(400, "bad_request", "Valid Google account email required.")
-
-    user = query_one("SELECT * FROM users WHERE username = %s", (email,))
-    if not user:
-        db = get_db()
-        cur = db.cursor()
-        cur.execute("""
-            INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
-            VALUES (%s, %s, NULL, 'India', 25, 'Analyst', 'google')
-        """, (name, email))
-        user_id = cur.lastrowid
-        db.commit()
-        role = "Analyst"
-        country = "India"
-    else:
-        # Prevent taking over password-based accounts without credentials
-        if user.get("auth_provider") != "google" and user.get("password_hash"):
-            raise ApiError(403, "forbidden", "An account with this email exists using password authentication. Please sign in with your password.")
-        user_id = user["id"]
-        name = user["name"]
-        role = user["role"]
-        country = user["country"]
-
-    session["authenticated"] = True
-    session["user_id"] = user_id
-    session["admin_name"] = name
-    session["user_role"] = role
-    session["user_country"] = country
-
-    return jsonify({
-        "data": {
-            "success": True,
-            "name": name,
-            "role": role,
-            "country": country,
-            "email": email
-        }
-    })
-
-@app.route("/logout", methods=["GET", "POST"])
-def logout():
-    session.clear()
-    return redirect("/login")
-
-# ----------------- Account Settings Profile API -----------------
-
-@app.route("/api/account", methods=["GET", "PATCH"])
-def account_settings():
-    user = get_current_user()
-
-    if request.method == "GET":
-        return jsonify({
-            "data": {
-                "name": user["name"],
-                "role": user["role"],
-                "country": user["country"],
-                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
-            }
-        })
-
-    data = json_body()
-    name = str(data.get("name") or user["name"]).strip()
-    role = str(data.get("role") or user["role"]).strip()
-    country = str(data.get("country") or user["country"]).strip()
-
-    if not name:
-        raise ApiError(400, "bad_request", "Full name cannot be empty.")
-
-    db = get_db()
-    db.cursor().execute("""
-        UPDATE users SET name = %s, role = %s, country = %s WHERE id = %s
-    """, (name, role, country, user["id"]))
-    db.commit()
-
-    session["admin_name"] = name
-    session["user_role"] = role
-    session["user_country"] = country
-
-    return jsonify({
-        "data": {
-            "name": name,
-            "role": role,
-            "country": country,
-            "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
-        }
-    })
-
-# ----------------- Static Asset Routes -----------------
-
-@app.get("/")
-def serve_index():
-    if not session.get("authenticated"):
-        return redirect("/login")
-    return send_from_directory(FRONTEND_DIR, "index.html")
-
-@app.get("/style.css")
-def serve_css():
-    return send_from_directory(FRONTEND_DIR, "style.css", mimetype="text/css")
-
-@app.get("/Group_Logo.png")
-def serve_group_logo():
-    return send_from_directory(FRONTEND_DIR, "Group_Logo.png")
-
-@app.get("/favicon.ico")
-def serve_favicon():
-    return Response(status=204)
-
-# ----------------- Link Core API -----------------
-
-@app.get("/api/links")
-def list_links():
-    user = get_current_user()
-    q = (request.args.get("q") or "").strip()
-    sql = LINK_SELECT + " WHERE l.user_id = %s"
-    params = [user["id"]]
-    if q:
-        sql += " AND (l.title LIKE %s OR l.original_url LIKE %s OR l.short_code LIKE %s)"
-        p = f"%{q}%"
-        params.extend([p, p, p])
-    sql += " ORDER BY l.created_at DESC"
-    rows = query_all(sql, params)
-    return jsonify({"data": [row_to_link(r) for r in rows]})
-
-@app.post("/api/links")
-def create_link():
-    user = get_current_user()
-    ip = request.remote_addr or "unknown"
-    if not limiter.allow(f"create:{user['id']}:{ip}", app.config["RATE_LIMIT_CREATE"], app.config["RATE_LIMIT_WINDOW_SECONDS"]):
-        raise ApiError(429, "rate_limited", "Creation limit reached. Please wait a minute.")
-
-    data = json_body()
-    destination = validate_destination(data.get("original_url"))
-    title = (data.get("title") or "").strip()[:160] or title_from_url(destination)
-
-    alias = data.get("custom_alias")
-    if alias:
-        alias = validate_alias(alias.strip())
-        if query_one("SELECT id FROM links WHERE short_code = %s OR custom_alias = %s", (alias, alias)):
-            raise ApiError(409, "conflict", f"Alias '{alias}' is already in use.")
-
-    code = alias or generate_short_code()
-    if not alias:
-        for _ in range(10):
-            if not query_one("SELECT id FROM links WHERE short_code = %s OR custom_alias = %s", (code, code)):
-                break
-            code = generate_short_code()
-
-    expires_at = parse_expires_at(data.get("expires_at"))
-    click_limit = data.get("click_limit")
-    if click_limit:
-        try:
-            click_limit = max(1, int(click_limit))
-        except (ValueError, TypeError):
-            raise ApiError(400, "invalid_limit", "Click limit must be a positive number.")
-    else:
-        click_limit = None
-
-    password = data.get("password")
-    pwd_hash = generate_password_hash(password.strip()) if password and len(password.strip()) >= 3 else None
-
-    campaign_id = data.get("campaign_id") or None
-    if campaign_id:
-        try:
-            campaign_id = int(campaign_id)
-            if not query_one("SELECT id FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"])):
-                campaign_id = None
-        except (ValueError, TypeError):
-            campaign_id = None
-
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("""
-        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user["id"]))
-
-    link_id = cur.lastrowid
-    db.commit()
-
-    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))}), 201
-
-@app.patch("/api/links/<int:link_id>")
-def update_link(link_id):
-    user = get_current_user()
-    current = get_user_link_or_404(link_id, user["id"])
-    data = json_body()
-
-    title = current["title"]
-    destination = current["original_url"]
-    click_limit = current["click_limit"]
-    expires_at = current["expires_at"]
-    campaign_id = current["campaign_id"]
-    pwd_hash = current["password_hash"]
-
-    if "title" in data:
-        t = str(data.get("title") or "").strip()
-        if t: title = t[:160]
-
-    if "original_url" in data:
-        destination = validate_destination(data.get("original_url"))
-
-    if "click_limit" in data:
-        val = data.get("click_limit")
-        click_limit = int(val) if val not in (None, "") else None
-
-    if "expires_at" in data:
-        expires_at = parse_expires_at(data.get("expires_at"))
-
-    if "campaign_id" in data:
-        cid = data.get("campaign_id")
-        if cid:
-            try:
-                cid = int(cid)
-                campaign_id = cid if query_one("SELECT id FROM campaigns WHERE id = %s AND user_id = %s", (cid, user["id"])) else None
-            except (ValueError, TypeError):
-                campaign_id = None
-        else:
-            campaign_id = None
-
-    if "password" in data:
-        pw = str(data.get("password") or "").strip()
-        if pw:
-            if len(pw) < 3:
-                raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
-            pwd_hash = generate_password_hash(pw)
-        else:
-            pwd_hash = None  # Clear password protection
-
-    db = get_db()
-    db.cursor().execute("""
-        UPDATE links 
-        SET title = %s, original_url = %s, click_limit = %s, expires_at = %s, campaign_id = %s, password_hash = %s
-        WHERE id = %s AND user_id = %s
-    """, (title, destination, click_limit, expires_at, campaign_id, pwd_hash, link_id, user["id"]))
-    db.commit()
-
-    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
-
-@app.patch("/api/links/<int:link_id>/status")
-def toggle_status(link_id):
-    user = get_current_user()
-    data = json_body()
-    new_status = data.get("status")
-    if new_status not in ("active", "disabled"):
-        raise ApiError(400, "invalid_status", "Status must be 'active' or 'disabled'.")
-    get_user_link_or_404(link_id, user["id"])
-    db = get_db()
-    db.cursor().execute("UPDATE links SET status = %s WHERE id = %s AND user_id = %s", (new_status, link_id, user["id"]))
-    db.commit()
-    return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
-
-@app.delete("/api/links/<int:link_id>")
-def delete_link(link_id):
-    user = get_current_user()
-    get_user_link_or_404(link_id, user["id"])
-    db = get_db()
-    db.cursor().execute("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
-    db.commit()
-    return jsonify({"data": {"deleted": True, "id": link_id}})
-
-# ----------------- Instant Click Simulator Endpoint -----------------
-
-@app.post("/api/links/<int:link_id>/simulate-click")
-def simulate_click(link_id):
-    user = get_current_user()
-    link = get_user_link_or_404(link_id, user["id"])
-
-    if link["status"] != "active":
-        raise ApiError(400, "link_inactive", f"Cannot simulate click: Link is currently {link['status']}.")
-
-    if link["click_limit"] is not None and link["click_count"] >= link["click_limit"]:
-        raise ApiError(400, "limit_reached", "Cannot simulate click: Link has reached its maximum click limit.")
-
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
-    country = detect_country(request)
-    try:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0, %s)
-        """, (link_id, country))
-    except Exception:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
-            VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', 'demo-test-ip', 0)
-        """, (link_id,))
-    db.commit()
-    return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
-
-# ----------------- Campaign Management -----------------
-
-@app.get("/api/campaigns")
-def list_campaigns():
-    user = get_current_user()
-    rows = query_all("""
-        SELECT c.id, c.name, c.tag, c.created_at,
-               COUNT(l.id) AS link_count,
-               COALESCE(SUM(l.click_count), 0) AS click_count
-        FROM campaigns c
-        LEFT JOIN links l ON l.campaign_id = c.id AND l.user_id = %s
-        WHERE c.user_id = %s
-        GROUP BY c.id, c.name, c.tag, c.created_at
-        ORDER BY c.created_at DESC
-    """, (user["id"], user["id"]))
-    return jsonify({"data": rows})
-
-@app.post("/api/campaigns")
-def create_campaign():
-    user = get_current_user()
-    data = json_body()
-    name = str(data.get("name") or "").strip()
-    tag = slugify(str(data.get("tag") or name)).strip("-")
-    if not name:
-        raise ApiError(400, "invalid_campaign", "Campaign name is required.")
-    existing = query_one("SELECT id FROM campaigns WHERE (name = %s OR tag = %s) AND user_id = %s", (name, tag, user["id"]))
-    if existing:
-        raise ApiError(409, "conflict", "You already have a campaign with this name or tag.")
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (name, tag, user["id"]))
-    c_id = cur.lastrowid
-    db.commit()
-    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (c_id, user["id"]))}), 201
-
-@app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
-def update_campaign(campaign_id):
-    user = get_current_user()
-    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
-    if not camp:
-        raise ApiError(404, "not_found", "Campaign not found.")
-    data = json_body()
-    name = str(data.get("name") or "").strip()
-    tag = slugify(str(data.get("tag") or name)).strip("-")
-    if not name:
-        raise ApiError(400, "invalid_campaign", "Campaign name cannot be empty.")
-    db = get_db()
-    db.cursor().execute("UPDATE campaigns SET name = %s, tag = %s WHERE id = %s AND user_id = %s", (name, tag, campaign_id, user["id"]))
-    db.commit()
-    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
-
-@app.delete("/api/campaigns/<int:campaign_id>")
-def delete_campaign(campaign_id):
-    user = get_current_user()
-    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
-    if not camp:
-        raise ApiError(404, "not_found", "Campaign not found.")
-    db = get_db()
-    db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
-    db.commit()
-    return jsonify({"data": {"deleted": True, "id": campaign_id}})
-
-# ----------------- Analytics & Graph Telemetry -----------------
-
-@app.get("/api/analytics/summary")
-def analytics_summary():
-    user = get_current_user()
-    stats = query_one("""
-        SELECT COUNT(*) AS total_links,
-               SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_links,
-               COALESCE(SUM(click_count), 0) AS total_clicks
-        FROM links
-        WHERE user_id = %s
-    """, (user["id"],))
-    uniques = query_one("""
-        SELECT COUNT(DISTINCT ce.ip_hash) AS total_uniques
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-    """, (user["id"],))
-    camps = query_one("SELECT COUNT(*) AS total_campaigns FROM campaigns WHERE user_id = %s", (user["id"],))
-
-    return jsonify({"data": {
-        "total_links": max(0, stats["total_links"] or 0) if stats else 0,
-        "active_links": max(0, stats["active_links"] or 0) if stats else 0,
-        "total_clicks": max(0, stats["total_clicks"] or 0) if stats else 0,
-        "unique_visitors": max(0, uniques["total_uniques"] or 0) if uniques else 0,
-        "total_campaigns": max(0, camps["total_campaigns"] or 0) if camps else 0,
-    }})
-
-@app.get("/api/analytics/clicks")
-def analytics_clicks():
-    user = get_current_user()
-    days = 7
-    try:
-        days = min(max(int(request.args.get("days", 7)), 1), 90)
-    except ValueError:
-        pass
-
-    today = datetime.now().date()
-    start_date = (today - timedelta(days=days - 1)).isoformat()
-
-    rows = query_all("""
-        SELECT DATE(ce.clicked_at) AS d, COUNT(*) AS c
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND ce.clicked_at >= %s AND l.user_id = %s
-        GROUP BY DATE(ce.clicked_at)
-    """, (start_date, user["id"]))
-
-    counts = {str(r["d"]): max(0, r["c"]) for r in rows}
-    series = []
-    for i in range(days):
-        dt = (today - timedelta(days=i)).isoformat()
-        series.append({"date": dt, "clicks": max(0, counts.get(dt, 0))})
-
-    return jsonify({"data": series})
-
-@app.get("/api/analytics/breakdown")
-def analytics_breakdown():
-    user = get_current_user()
-    total_row = query_one("""
-        SELECT COUNT(*) as c
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-    """, (user["id"],))
-    total_clicks = max(1, (total_row["c"] if total_row and total_row["c"] else 0))
-
-    sources = query_all("""
-        SELECT COALESCE(NULLIF(ce.referrer, ''), 'Direct / Email') AS source, COUNT(*) AS count
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-        GROUP BY source ORDER BY count DESC LIMIT 5
-    """, (user["id"],))
-    devices = query_all("""
-        SELECT COALESCE(NULLIF(ce.device_type, ''), 'desktop') AS source, COUNT(*) AS count
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-        GROUP BY source ORDER BY count DESC LIMIT 5
-    """, (user["id"],))
-    try:
-        countries = query_all("""
-            SELECT COALESCE(NULLIF(ce.country, ''), 'Direct / Local') AS source, COUNT(*) AS count
-            FROM click_events ce
-            JOIN links l ON l.id = ce.link_id
-            WHERE ce.is_bot = 0 AND l.user_id = %s
-            GROUP BY source ORDER BY count DESC LIMIT 5
-        """, (user["id"],))
-    except Exception:
-        countries = []
-
-    def present(rows):
-        return [{"name": str(item["source"]), "count": max(0, item["count"]),
-                 "pct": round((item["count"] / total_clicks) * 100)}
-                for item in rows]
-
-    return jsonify({"data": {
-        "sources": present(sources),
-        "devices": present(devices),
-        "countries": present(countries)
-    }})
-
-# ----------------- Redirection Engine -----------------
-
-@app.route("/<short_code>", methods=["GET", "POST"])
-def redirect_engine(short_code):
-    if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout"):
-        return Response(status=404)
-
-    row = query_one(LINK_SELECT + " WHERE l.short_code = %s OR l.custom_alias = %s", (short_code, short_code))
-    if not row:
-        return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
-
-    if row["status"] != "active":
-        return Response("<h1>Link Expired or Inactive</h1>", status=410, mimetype="text/html")
-
-    if row["click_limit"] is not None and row["click_count"] >= row["click_limit"]:
-        return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
-
-    # 1. Password Verification Gate with Rate Limiting
-    if row["password_hash"]:
-        ip = request.remote_addr or "unknown"
-        if request.method == "POST":
-            if not limiter.allow(f"pw:{short_code}:{ip}", app.config.get("RATE_LIMIT_PASSWORD", 8), app.config.get("RATE_LIMIT_WINDOW_SECONDS", 60)):
-                return Response("<h1>429 — Too Many Password Attempts</h1><p>Please wait 60 seconds before trying again.</p>", status=429, mimetype="text/html")
-
-        provided_password = request.form.get("link_password")
-        if not provided_password or not check_password_hash(row["password_hash"], provided_password):
-            error_html = "<p style='color:#ef4444;font-size:0.85rem;font-weight:600;margin:0.5rem 0;'>Incorrect password. Please try again.</p>" if request.method == "POST" else ""
-            return f"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Password Protected Link — LinkPulse</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkPulse</title>
+  <link rel="stylesheet" href="/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
-  <style>
-    body {{
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      display: flex; justify-content: center; align-items: center; min-height: 100vh;
-      margin: 0; background-color: #f8fafc;
-      background-image: radial-gradient(at 0% 0%, rgba(199, 210, 254, 0.6) 0px, transparent 50%),
-                        radial-gradient(at 100% 100%, rgba(254, 215, 170, 0.5) 0px, transparent 50%);
-      color: #0f172a;
-    }}
-    .gate-card {{
-      background: rgba(255, 255, 255, 0.94);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.95);
-      padding: 2.5rem 2rem; border-radius: 1.5rem;
-      box-shadow: 0 25px 60px -15px rgba(99, 102, 241, 0.18);
-      width: 100%; max-width: 360px; text-align: center;
-    }}
-    .lock-icon {{
-      width: 52px; height: 52px; background: rgba(99, 102, 241, 0.12);
-      color: #4f46e5; border-radius: 16px; font-size: 1.5rem;
-      display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;
-    }}
-    h2 {{ font-size: 1.45rem; font-weight: 800; margin: 0 0 0.35rem; color: #1e1b4b; }}
-    p {{ font-size: 0.88rem; color: #64748b; margin: 0 0 1.25rem; line-height: 1.4; }}
-    input {{
-      width: 100%; box-sizing: border-box; padding: 0.8rem 1rem;
-      border: 1.5px solid #cbd5e1; border-radius: 0.75rem;
-      font-size: 0.95rem; font-family: inherit; outline: none; margin-bottom: 0.85rem;
-    }}
-    input:focus {{ border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }}
-    button {{
-      width: 100%; padding: 0.85rem; border: none; border-radius: 0.75rem;
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
-      box-shadow: 0 6px 18px rgba(79, 70, 229, 0.3); transition: transform 0.15s ease;
-    }}
-    button:hover {{ transform: translateY(-1px); }}
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
+
 <body>
-  <div class="gate-card">
-    <div class="lock-icon">🔒</div>
-    <h2>Protected Link</h2>
-    <p>This destination is gated. Enter the access password to continue.</p>
-    {error_html}
-    <form method="POST">
-      <input type="password" name="link_password" placeholder="Enter password" required autofocus />
-      <button type="submit">Verify & Continue →</button>
-    </form>
+  <div class="app-layout">
+
+    <!-- Account Dashboard -->
+    <div class="drawer-backdrop" id="accountModal">
+      <div class="drawer-panel" style="max-width: 520px;">
+        <div class="drawer-header">
+          <div>
+            <span class="chip-accent">Account Governance</span>
+            <h3 class="drawer-title">Admin Account Profile</h3>
+            <p class="drawer-sub">Manage your display credentials, country, and edge routing role.</p>
+          </div>
+          <button class="btn-drawer-close" onclick="$('accountModal').classList.remove('active')">&times;</button>
+        </div>
+
+        <!-- User Header Preview -->
+        <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: rgba(248, 250, 252, 0.95); border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 1.25rem;">
+          <div class="user-avatar-gradient" id="modalAccountAvatar" style="width: 48px; height: 48px; font-size: 1.1rem;">LP</div>
+          <div>
+            <strong id="modalAccountNameDisplay" style="font-size: 1.05rem; color: #1e1b4b; display: block;">Live Admin</strong>
+            <span id="modalAccountEmailDisplay" style="font-size: 0.8rem; color: #64748b;">admin@linkpulse.io</span>
+          </div>
+        </div>
+
+        <form id="accountSettingsForm" class="drawer-form-stack">
+          <div class="form-grid-two">
+            <div class="form-field-group">
+              <label for="accName">Full Display Name</label>
+              <input type="text" id="accName" class="glass-input-styled" required />
+            </div>
+            <div class="form-field-group">
+              <label for="accEmail">Admin Email</label>
+              <input type="email" id="accEmail" class="glass-input-styled" readonly style="background: #f1f5f9; color: #64748b;" />
+            </div>
+          </div>
+
+          <div class="form-grid-two">
+            <div class="form-field-group">
+              <label for="accCountry">Country / Region</label>
+              <select id="accCountry" class="glass-input-styled">
+                <option value="India">🇮🇳 India</option>
+                <option value="United States">🇺🇸 United States</option>
+                <option value="United Kingdom">🇬🇧 United Kingdom</option>
+                <option value="Canada">🇨🇦 Canada</option>
+                <option value="Germany">🇩🇪 Germany</option>
+                <option value="France">🇫🇷 France</option>
+                <option value="Australia">🇦🇺 Australia</option>
+                <option value="Singapore">🇸🇬 Singapore</option>
+              </select>
+            </div>
+            <div class="form-field-group">
+              <label for="accRole">Role / Title</label>
+              <input type="text" id="accRole" class="glass-input-styled" placeholder="e.g. Admin" value="Admin" required />
+            </div>
+          </div>
+
+          <div class="form-field-group">
+            <label for="accDomain">Default Short Brand Domain</label>
+            <input type="text" id="accDomain" class="glass-input-styled" value="linkpulse.io" readonly style="background: #f1f5f9; color: #64748b;" />
+          </div>
+
+          <div class="drawer-bottom-actions">
+            <button type="button" class="btn-glass" onclick="$('accountModal').classList.remove('active')">Cancel</button>
+            <button type="submit" class="btn-gradient">Save Account Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="mainSidebar">
+      <button class="btn-edge-toggle" id="toggleSidebarBtn" title="Collapse / Expand Sidebar">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+        </div>
+        <div class="brand-text-wrap">
+          <span class="brand-title">LinkPulse</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-tab active" data-tab="tab-overview" title="Overview">
+          <div class="nav-icon-box ic-azure">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+          </div>
+          <span>Overview</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-details" title="Link Analytics">
+          <div class="nav-icon-box ic-amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+          </div>
+          <span>Link Analytics</span>
+          <span class="badge-pill bg-soft-blue" id="sideBadgeLinks">0</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-campaigns" title="Campaigns">
+          <div class="nav-icon-box ic-emerald">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <span>Campaigns</span>
+          <span class="badge-pill bg-soft-emerald" id="sideBadgeCampaigns">0</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-about" title="About Us">
+          <div class="nav-icon-box ic-violet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <span>About Us</span>
+          <span class="badge-pill bg-soft-blue">Team</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="status-indicator">
+          <span class="pulse-emerald"></span>
+          <span>Live</span>
+        </div>
+        <div class="user-chip" id="adminUserChip" style="cursor: pointer; display: flex; align-items: center; gap: 0.75rem;" title="Click to Edit Profile">
+          <div class="user-avatar-gradient" id="adminAvatar">AD</div>
+          <div class="user-info" style="display: flex; flex-direction: column; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <span class="user-name" id="adminName" style="font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">Admin</span>
+            </div>
+            <span class="user-role" id="adminRole" style="font-size: 0.74rem; font-weight: 600; color: #64748b;">Admin</span>
+          </div>
+        </div>
+
+        <!-- Sign Out Button -->
+        <a href="/logout" class="sidebar-signout-btn" title="Sign out of LinkPulse">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Sign Out</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <main class="main-viewport">
+      <header class="glass-header">
+        <div class="header-left">
+          <div class="header-tag">Telemetry Workspace</div>
+          <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
+          <p class="header-subtitle">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-glass" id="exportCsvBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Export CSV</span>
+          </button>
+          <input type="file" id="csvFileInput" accept=".csv" hidden />
+          <button class="btn-glass" id="importCsvBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span>Import CSV</span>
+          </button>
+          <button class="btn-gradient" id="openDrawerBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Create Smart Link</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB 1: Overview -->
+      <section class="tab-pane active" id="tab-overview">
+        <!-- Stats -->
+        <div class="stats-ribbon">
+          <div class="stat-card tint-azure">
+            <div class="stat-header"><span class="stat-title">Total Redirects</span></div>
+            <div class="stat-value text-gradient-azure" id="valTotalClicks">0</div>
+            <div class="stat-footer positive"><span class="trend-pill">Live Telemetry</span></div>
+          </div>
+          <div class="stat-card tint-violet">
+            <div class="stat-header"><span class="stat-title">Active Links</span></div>
+            <div class="stat-value text-gradient-violet" id="valActiveLinks">0</div>
+            <div class="stat-footer neutral"><span class="tag-status">● Live Routing</span></div>
+          </div>
+          <div class="stat-card tint-emerald">
+            <div class="stat-header"><span class="stat-title">Unique Visitors</span></div>
+            <div class="stat-value text-gradient-emerald" id="valUniques">0</div>
+            <div class="stat-footer positive"><span class="trend-pill">Privacy-Hashed</span></div>
+          </div>
+          <div class="stat-card tint-rose">
+            <div class="stat-header"><span class="stat-title">Campaigns</span></div>
+            <div class="stat-value text-gradient-rose" id="valCampaigns">0</div>
+            <div class="stat-footer neutral"><span class="tag-status">● Categorized</span></div>
+          </div>
+        </div>
+
+        <!-- Shorten Bar -->
+        <div class="glass-container quick-bar">
+          <div class="quick-input-group">
+            <input type="text" id="quickUrlInput" class="quick-input-field"
+              placeholder="Paste destination link (e.g. https://store.com/promo or example.com)..." />
+          </div>
+          <button class="btn-gradient" id="quickShortenBtn"><span>Instant Shorten</span></button>
+        </div>
+
+        <!-- Chart & Spotlight -->
+        <div class="dashboard-split">
+          <div class="glass-container chart-box">
+            <div class="box-head-flex">
+              <div>
+                <span class="section-tag-soft">Activity Dynamics</span>
+                <h3 class="box-title">Click & Redirect Volume</h3>
+                <p class="box-sub">Rolling 7-day timeline (Past 7 days up to Today).</p>
+              </div>
+              <div class="chart-action-cluster">
+                <div class="chart-toggle-switch">
+                  <button class="switch-btn active" id="btnChartSpline">Wave</button>
+                  <button class="switch-btn" id="btnChartBars">Columns</button>
+                </div>
+                <span class="chip-accent">Live 7D</span>
+              </div>
+            </div>
+
+            <div class="chart-stage" id="chartStage">
+              <div class="chart-tooltip" id="chartTooltip">
+                <span class="tooltip-date" id="ttDate">--</span>
+                <span class="tooltip-val" id="ttClicks">0 clicks</span>
+              </div>
+              <svg id="trendSvg" viewBox="0 0 700 230" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.38" />
+                    <stop offset="100%" stop-color="#a855f7" stop-opacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#818cf8" />
+                    <stop offset="100%" stop-color="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                <g id="gridLinesGroup"></g>
+                <path id="chartAreaPath" fill="url(#areaGlow)" d=""></path>
+                <path id="chartLinePath" fill="none" stroke="url(#barGlow)" stroke-width="3.5" stroke-linecap="round"
+                  stroke-linejoin="round" d=""></path>
+                <g id="barsGroup"></g>
+                <g id="dotsGroup"></g>
+              </svg>
+              <div class="chart-labels-row" id="chartDateRow"></div>
+            </div>
+          </div>
+
+          <div class="glass-container spotlight-box">
+            <div class="box-head-flex">
+              <div>
+                <span class="section-tag-soft">Live Spotlight</span>
+                <h3 class="box-title">Active Short Link</h3>
+              </div>
+              <span class="chip-active">Realtime</span>
+            </div>
+            <div class="spotlight-card-preview">
+              <div class="spotlight-card-inner">
+                <div class="mock-browser-header"><span></span><span></span><span></span></div>
+                <div class="spotlight-badge">Instant Routing Ready</div>
+                <h4 class="spotlight-title" id="spotlightTitle">Select or create a link</h4>
+                <p class="spotlight-dest" id="spotlightDest">https://example.com</p>
+              </div>
+            </div>
+            <div class="spotlight-field-wrap">
+              <div class="spotlight-copy-group">
+                <input type="text" id="spotlightShortUrl" class="field-slug-input" readonly
+                  value="https://linkpulse.io/latest" />
+                <button class="btn-spotlight-copy" id="spotlightCopyBtn">Copy</button>
+              </div>
+            </div>
+            <div class="spotlight-qr-row">
+              <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
+              <div class="spotlight-qr-meta">
+                <strong>Crisp Vector QR</strong>
+                <button class="text-link-btn" id="spotlightDownloadQr">Download QR PNG ↓</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column Panels -->
+        <div class="breakdown-grid">
+          <div class="glass-container breakdown-card">
+            <h4 class="breakdown-title">Top Traffic Referrers</h4>
+            <div class="breakdown-items-list" id="sourceRows">
+              <p class="empty-placeholder">Awaiting traffic clicks...</p>
+            </div>
+          </div>
+          <div class="glass-container breakdown-card">
+            <h4 class="breakdown-title">Device & Platform</h4>
+            <div class="breakdown-items-list" id="deviceRows">
+              <p class="empty-placeholder">No device visits logged yet.</p>
+            </div>
+          </div>
+          <div class="glass-container breakdown-card">
+            <h4 class="breakdown-title">Geographic Regions</h4>
+            <div class="breakdown-items-list" id="countryRows">
+              <p class="empty-placeholder">Awaiting traffic clicks...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table on Overview Tab -->
+        <div class="glass-container table-wrapper-box">
+          <div class="table-top-bar">
+            <div>
+              <span class="section-tag-soft">Inventory</span>
+              <h3 class="box-title">Managed Short Links</h3>
+            </div>
+            <div class="table-filters-row">
+              <input type="text" id="searchInput" class="search-glass-field"
+                placeholder="Search by title, code, url..." />
+              <select id="statusFilter" class="select-glass-field">
+                <option value="all">All Statuses</option>
+                <option value="active">Active Only</option>
+                <option value="disabled">Paused Only</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="responsive-table-scroll">
+            <table class="glass-table">
+              <thead>
+                <tr>
+                  <th>Destination & Meta</th>
+                  <th>Short Code</th>
+                  <th>Clicks</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="linksTbody">
+                <tr>
+                  <td colspan="6" class="table-empty">Loading your links...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 2: Link Analytics -->
+      <section class="tab-pane" id="tab-details">
+        <div class="glass-container details-hero" style="margin-bottom: 1.5rem;">
+          <div class="details-head-split">
+            <div style="min-width: 0; max-width: 70%;">
+              <span class="chip-accent">Active Inspection</span>
+              <h2 id="detTitle" class="details-heading">Select a link from the table below</h2>
+              <p id="detUrl" class="details-destination">Click anywhere on a row to inspect its telemetry</p>
+            </div>
+            <div class="details-metric-chip">
+              <span class="metric-huge" id="detClicks">0</span>
+              <span class="metric-label">Verified Redirects</span>
+            </div>
+          </div>
+
+          <div class="details-grid-cards">
+            <div class="det-card">
+              <span class="det-lbl">Short Slug</span>
+              <span class="det-val text-gradient-azure" id="detSlug">--</span>
+            </div>
+            <div class="det-card">
+              <span class="det-lbl">Routing State</span>
+              <span class="det-val text-gradient-emerald" id="detStatus">--</span>
+            </div>
+            <div class="det-card">
+              <span class="det-lbl">Password Gate</span>
+              <span class="det-val text-gradient-violet" id="detPassword">None</span>
+            </div>
+            <div class="det-card">
+              <span class="det-lbl">Created On</span>
+              <span class="det-val" id="detCreated">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-container table-wrapper-box">
+          <div class="table-top-bar">
+            <div>
+              <span class="section-tag-soft">Pick a Link</span>
+              <h3 class="box-title">Click Any Row to Inspect Live Telemetry</h3>
+            </div>
+          </div>
+
+          <div class="responsive-table-scroll">
+            <table class="glass-table">
+              <thead>
+                <tr>
+                  <th>Destination & Meta</th>
+                  <th>Short Code</th>
+                  <th>Clicks</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="linksTbodyAnalytics">
+                <tr>
+                  <td colspan="5" class="table-empty">Loading links for analytics...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Campaigns -->
+      <section class="tab-pane" id="tab-campaigns">
+        <div class="glass-container campaign-box">
+          <div class="box-head-flex">
+            <div>
+              <span class="section-tag-soft">Initiatives</span>
+              <h3 class="box-title">Marketing Campaigns</h3>
+            </div>
+            <span class="badge-pill bg-soft-blue" id="campaignCount">0 campaigns</span>
+          </div>
+
+          <form id="campaignForm" class="campaign-create-form">
+            <input id="campaignName" class="glass-input-styled" maxlength="120" placeholder="Campaign Name" required />
+            <input id="campaignTag" class="glass-input-styled" maxlength="60" placeholder="Tag (e.g. launch)" />
+            <button class="btn-gradient" type="submit">＋ Create Campaign</button>
+          </form>
+
+          <div id="campaignRows" class="campaigns-grid-cards">
+            <p class="empty-placeholder">Loading campaigns…</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 4: Anout Us -->
+      <section class="tab-pane" id="tab-about">
+        <div class="glass-container about-hero-box">
+          <div class="hackathon-tag-pill">
+            <span class="pulse-emerald"></span>
+            <span>Official Hackathon Innovation Project</span>
+          </div>
+
+          <!-- Group Logo -->
+          <div style="width: 100%; margin: 1.25rem 0; overflow: hidden; border-radius: 20px;">
+            <img 
+              src="/Group_Logo.png" 
+              alt="Group Logo" 
+              style="width: 100%; max-height: 200px; object-fit: cover; object-position: center; display: block; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);" 
+            />
+          </div>
+
+          <h2 class="about-team-heading">
+            Engineered by <span class="team-gradient-txt">Code with Caos</span>
+          </h2>
+          <p style="font-size: 1.05rem; color: var(--text-body); max-width: 660px; margin: 0 auto 1.5rem; line-height: 1.6;">
+            Built with passion as an innovative Hackathon project to deliver real-time edge link governance, sub-40ms atomic
+            redirection, and privacy-shielded telemetry without slowing users down.
+          </p>
+
+          <div class="about-divider"></div>
+
+          <h3 class="members-title">Project Contributors</h3>
+
+          <div class="members-grid">
+            <div class="member-glass-card">
+              <div class="member-avatar av-1">DM</div>
+              <div class="member-meta">
+                <strong>Divyanshu Mehta</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-2">KP</div>
+              <div class="member-meta">
+                <strong>Kamal Pandey</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-3">AP</div>
+              <div class="member-meta">
+                <strong>Ashish Pandey</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-4">VJ</div>
+              <div class="member-meta">
+                <strong>Vivek Joshi</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-5">NT</div>
+              <div class="member-meta">
+                <strong>Neelabh Raj Singh</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
-</body>
-</html>""", 200
 
-    # 2. Telemetry and Bot Classification
-    ua = request.headers.get("User-Agent") or ""
-    device, browser, is_bot = classify_user_agent(ua)
-    ref = sanitize_referrer(request.headers.get("Referer"))
-    ip_hash = anonymize_ip(request.remote_addr, app.config["SECRET_KEY"])
-    country = detect_country(request)
+  <!-- Centered Modal For Edit -->
+  <div class="drawer-backdrop" id="linkDrawerBackdrop">
+    <div class="drawer-panel" id="linkDrawer">
+      <div class="drawer-header">
+        <div>
+          <span class="chip-accent" id="drawerModeTag">Smart Builder</span>
+          <h3 class="drawer-title" id="drawerTitle">Create Short Link</h3>
+          <p class="drawer-sub">Configure destination, alias, UTM parameters & gates.</p>
+        </div>
+        <button class="btn-drawer-close" id="closeDrawerBtn">&times;</button>
+      </div>
 
-    db = get_db()
-    cur = db.cursor()
+      <form id="createLinkForm" class="drawer-form-stack">
+        <input type="hidden" id="editLinkId" value="" />
 
-    if not is_bot:
-        cur.execute("""
-            UPDATE links SET click_count = click_count + 1
-            WHERE id = %s AND (click_limit IS NULL OR click_count < click_limit)
-        """, (row["id"],))
+        <div class="form-field-group">
+          <label for="inpUrl">Destination URL *</label>
+          <input type="text" id="inpUrl" class="glass-input-styled"
+            placeholder="https://store.example.com/promo or example.com" required />
+        </div>
 
-        if cur.rowcount == 0 and row["click_limit"] is not None:
-            return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
+        <div class="form-grid-two">
+          <div class="form-field-group">
+            <label for="inpTitle">Custom Title</label>
+            <input type="text" id="inpTitle" class="glass-input-styled" placeholder="e.g. Summer Promo" />
+          </div>
+          <div class="form-field-group">
+            <label for="inpAlias">Custom Alias (Slug)</label>
+            <input type="text" id="inpAlias" class="glass-input-styled" placeholder="e.g. summer-26" />
+          </div>
+        </div>
 
-    try:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0, country))
-    except Exception:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0))
+        <div class="form-grid-two">
+          <div class="form-field-group">
+            <label for="inpLimit">Click Cap Limit</label>
+            <input type="number" id="inpLimit" min="1" class="glass-input-styled" placeholder="e.g. 500" />
+          </div>
+          <div class="form-field-group">
+            <label for="inpExpiry">Expiration Date</label>
+            <input type="date" id="inpExpiry" class="glass-input-styled" />
+          </div>
+        </div>
 
-    db.commit()
+        <div class="form-grid-two">
+          <div class="form-field-group">
+            <label for="inpPassword">Password Protection</label>
+            <input type="password" id="inpPassword" class="glass-input-styled" placeholder="Leave empty for public" />
+            <div id="clearPasswordGroup" style="display: none; margin-top: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; font-weight: 600; color: #dc2626; cursor: pointer;">
+                <input type="checkbox" id="inpClearPassword" /> Remove Password Protection
+              </label>
+            </div>
+          </div>
+          <div class="form-field-group">
+            <label for="inpCampaign">Assign to Campaign</label>
+            <select id="inpCampaign" class="glass-input-styled">
+              <option value="">No Campaign</option>
+            </select>
+          </div>
+        </div>
 
-    return redirect(row["original_url"], code=302)
+        <div id="drawerErrorBox" class="drawer-error-callout" style="display: none;"></div>
 
-# ----------------- CSV Import / Export -----------------
+        <div class="drawer-bottom-actions">
+          <button type="button" class="btn-glass" id="cancelDrawerBtn">Cancel</button>
+          <button type="submit" class="btn-gradient" id="submitLinkBtn">
+            <span id="submitBtnText">Generate Short Link</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-@app.route("/api/links/export", methods=["GET"])
-def export_csv():
-    user = get_current_user()
-    rows = query_all(LINK_SELECT + " WHERE l.user_id = %s ORDER BY l.created_at DESC", (user["id"],))
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["Title", "Destination", "Short URL", "Clicks", "Status", "Expires At", "Click Limit", "Campaign"])
-    for r in rows:
-        writer.writerow([
-            r["title"], r["original_url"], short_url_for(r["custom_alias"] or r["short_code"]),
-            max(0, r["click_count"]), r["status"], r["expires_at"] or "",
-            r["click_limit"] or "", r["campaign_name"] or ""
-        ])
-    return Response(
-        "\ufeff" + buf.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=linkpulse-export-{datetime.now():%Y%m%d}.csv"}
-    )
+  <!-- Campaign -->
+  <div class="drawer-backdrop" id="campaignDetailsModal">
+    <div class="drawer-panel" style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
+      
+      <!-- Header Section -->
+      <div class="drawer-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem;">
+        <div>
+          <span class="chip-accent" style="display: inline-block; background: rgba(99, 102, 241, 0.1); color: #4f46e5; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem;">Campaign Governance</span>
+          <h3 class="drawer-title" id="campModalHeading" style="font-size: 1.45rem; font-weight: 800; color: #1e1b4b; margin: 0 0 0.25rem 0;">Edit Details</h3>
+          <p class="drawer-sub" id="campModalMeta" style="font-size: 0.84rem; color: #64748b; margin: 0;">Created on --</p>
+        </div>
+        <button class="btn-drawer-close" onclick="document.getElementById('campaignDetailsModal').classList.remove('active')" style="background: none; border: none; font-size: 1.6rem; color: #64748b; cursor: pointer;">&times;</button>
+      </div>
 
-@app.route("/api/links/import", methods=["POST"])
-def import_csv():
-    user = get_current_user()
-    if "file" not in request.files:
-        raise ApiError(400, "invalid_file", "No CSV file uploaded.")
-    file = request.files["file"]
-    raw = file.read()
-    if len(raw) > app.config["CSV_MAX_BYTES"]:
-        raise ApiError(413, "payload_too_large", "CSV file exceeds maximum allowed size.")
+      <!-- Form Section -->
+      <form id="editCampForm" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.35rem;">
+        <input type="hidden" id="editCampId" />
+        
+        <div class="form-grid-two" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-field-group" style="display: flex; flex-direction: column; gap: 0.35rem;">
+            <label style="font-size: 0.84rem; font-weight: 700; color: #1e293b;">Campaign Name</label>
+            <input type="text" id="editCampName" class="glass-input-styled" placeholder="Enter campaign name" required />
+          </div>
+          <div class="form-field-group" style="display: flex; flex-direction: column; gap: 0.35rem;">
+            <label style="font-size: 0.84rem; font-weight: 700; color: #1e293b;">Slug / Tag</label>
+            <input type="text" id="editCampTag" class="glass-input-styled" placeholder="e.g. launch" required />
+          </div>
+        </div>
+        
+        <button type="submit" class="btn-gradient" style="align-self: flex-end; padding: 0.65rem 1.4rem; font-size: 0.88rem; border-radius: 10px;">Save Details</button>
+      </form>
 
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise ApiError(400, "invalid_encoding", "CSV must be UTF-8 encoded.")
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        raise ApiError(400, "invalid_csv", "CSV is empty or has no header row.")
-    imported, failed, errors = 0, 0, []
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0 0 1.25rem 0;" />
 
-    db = get_db()
-    for idx, row in enumerate(reader, start=2):
-        if idx - 1 > app.config["MAX_IMPORT_ROWS"]:
-            break
-        try:
-            dest = validate_destination(row.get("Destination") or row.get("url") or "")
-            title = (row.get("Title") or title_from_url(dest)).strip()
-            
-            code = generate_short_code()
-            for _ in range(5):
-                if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
-                    break
-                code = generate_short_code()
+      <!-- Links Row -->
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0; white-space: nowrap;">Links in this Campaign</h4>
+        
+        <div style="display: flex; gap: 0.6rem; align-items: center;">
+          <!-- Hidden select for API logic -->
+          <select id="selectLinkToAdd" style="display: none;"></select>
 
-            db.cursor().execute("""
-                INSERT INTO links (title, original_url, short_code, user_id) VALUES (%s, %s, %s, %s)
-            """, (title, dest, code, user["id"]))
-            imported += 1
-        except Exception as e:
-            failed += 1
-            errors.append(f"Row {idx}: {str(e)}")
+          <!-- Custom Dropdown -->
+          <div class="custom-dropdown-box" id="customLinkDropdown">
+            <button type="button" class="custom-dropdown-trigger" id="customDropdownBtn">
+              <span id="customDropdownLabel">Select a link...</span>
+              <svg class="dropdown-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="custom-dropdown-menu" id="customDropdownMenu"></div>
+          </div>
 
-    db.commit()
-    return jsonify({"data": {"imported": imported, "failed": failed, "errors": errors[:20]}})
+          <button type="button" class="btn-gradient" id="btnAddLinkToCamp" style="padding: 0.55rem 1.15rem; font-size: 0.84rem; white-space: nowrap; border-radius: 10px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);">＋ Add Link</button>
+        </div>
+      </div>
 
-# ----------------- Campaign Links Details & Assignment -----------------
+      <!-- Assigned Links -->
+      <div id="campAssignedLinksList" style="display: flex; flex-direction: column; gap: 0.65rem; min-height: 190px !important; max-height: 190px; overflow-y: auto; flex: 1;">
+        <p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>
+      </div>
 
-@app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
-def get_campaign_details(campaign_id):
-    user = get_current_user()
-    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
-    if not camp:
-        raise ApiError(404, "not_found", "Campaign not found.")
-    assigned_links = query_all("""
-        SELECT id, title, short_code, custom_alias, original_url, click_count
-        FROM links
-        WHERE campaign_id = %s AND user_id = %s
-    """, (campaign_id, user["id"]))
-    all_links = query_all("""
-        SELECT id, title, short_code, custom_alias, campaign_id
-        FROM links
-        WHERE user_id = %s
-        ORDER BY created_at DESC
-    """, (user["id"],))
-    return jsonify({
-        "data": {
-            "campaign": camp,
-            "assigned_links": assigned_links,
-            "all_links": all_links
+    </div>
+  </div>
+
+  <!-- QR CODE MODAL -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal-glass-container">
+      <button class="modal-close-cross" id="closeQrBtn">&times;</button>
+      <div class="modal-icon-badge">▦</div>
+      <h3 class="modal-main-title">Dynamic QR Code</h3>
+      <div class="qr-canvas-wrapper">
+        <div id="qrCanvasBox"></div>
+      </div>
+      <p id="qrUrlLabel" class="qr-code-url-txt"></p>
+      <button class="btn-gradient full-w" id="downloadQrBtn">⇩ Download High-Res PNG</button>
+    </div>
+  </div>
+
+  <div class="toast-bubble" id="toastBox">Notification message</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    window.$ = id => document.getElementById(id);
+    const $ = window.$;
+    let cachedLinks = [];
+    let cachedCampaigns = [];
+    let activeChartType = 'spline';
+    let lastChartData = [];
+    let selectedLinkId = null;
+
+    const escapeHTML = val => String(val ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+
+    $('campaignDetailsModal')?.addEventListener('click', e => {
+      if (e.target === $('campaignDetailsModal')) {
+        $('campaignDetailsModal').classList.remove('active');
+      }
+    });
+
+    $('qrModal')?.addEventListener('click', e => {
+      if (e.target === $('qrModal')) {
+        $('qrModal').classList.remove('active');
+      }
+    });
+
+    $('accountModal')?.addEventListener('click', e => {
+      if (e.target === $('accountModal')) {
+        $('accountModal').classList.remove('active');
+      }
+    });
+
+    async function api(path, opts = {}) {
+      const options = { ...opts, headers: { ...(opts.headers || {}) } };
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        options.body = JSON.stringify(options.body);
+        options.headers['Content-Type'] = 'application/json';
+      }
+      const res = await fetch(path, options);
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      throw new Error(json?.error?.message || `Request failed (${res.status})`);
+    }
+    }
+
+    function toast(msg) {
+      const el = $('toastBox');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    const sidebar = document.querySelector('.sidebar');
+    $('toggleSidebarBtn').onclick = () => {
+      sidebar.classList.toggle('collapsed');
+    };
+
+    if (window.innerWidth <= 1024) {
+      sidebar?.classList.add('collapsed');
+    }
+
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const target = $(btn.dataset.tab);
+        if (target) target.classList.add('active');
+        $('pageTitle').textContent = btn.querySelector('span')?.textContent || 'Dashboard';
+      });
+    });
+
+    function loadAdminProfile() {
+      const name = localStorage.getItem('lp_admin_name') || 'Admin';
+      const role = localStorage.getItem('lp_admin_role') || 'Admin';
+      const email = localStorage.getItem('lp_admin_email') || 'admin@linkpulse.io';
+      const country = localStorage.getItem('lp_admin_country') || 'India';
+
+      $('adminName').textContent = name;
+      $('adminRole').textContent = role;
+      
+      const initials = name.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'AD';
+      $('adminAvatar').textContent = initials;
+
+      $('accName').value = name;
+      $('accRole').value = role;
+      $('accEmail').value = email;
+      $('accCountry').value = country;
+      $('modalAccountAvatar').textContent = initials;
+      $('modalAccountNameDisplay').textContent = name;
+      $('modalAccountEmailDisplay').textContent = email;
+    }
+    loadAdminProfile();
+
+    async function syncAdminProfile() {
+      try {
+        const acc = await api('/api/account');
+        if (acc) {
+          if (acc.name) localStorage.setItem('lp_admin_name', acc.name);
+          if (acc.role) localStorage.setItem('lp_admin_role', acc.role);
+          if (acc.country) localStorage.setItem('lp_admin_country', acc.country);
+          if (acc.email) localStorage.setItem('lp_admin_email', acc.email);
+          loadAdminProfile();
         }
-    })
+      } catch (err) {
+        // Keep localStorage cache if endpoint is offline
+      }
+    }
+    syncAdminProfile();
 
-@app.route("/api/campaigns/<int:campaign_id>/assign-link", methods=["POST"])
-def assign_campaign_link(campaign_id):
-    user = get_current_user()
-    camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
-    if not camp:
-        raise ApiError(404, "not_found", "Campaign not found.")
-    data = json_body()
-    link_id = data.get("link_id")
-    if not link_id:
-        raise ApiError(400, "invalid_id", "A valid link_id is required.")
-    action = data.get("action", "add")
-    get_user_link_or_404(link_id, user["id"])
-    db = get_db()
-    if action == "add":
-        db.cursor().execute("UPDATE links SET campaign_id = %s WHERE id = %s AND user_id = %s", (campaign_id, link_id, user["id"]))
-    else:
-        db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s AND user_id = %s", (link_id, campaign_id, user["id"]))
-    db.commit()
-    return jsonify({"data": {"success": True}})
+    $('adminUserChip').onclick = () => {
+      loadAdminProfile();
+      $('accountModal').classList.add('active');
+    };
 
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    print(f"\n[LinkPulse] Server running on port {port}\n")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    $('accountSettingsForm').onsubmit = async e => {
+      e.preventDefault();
+      const name = $('accName').value.trim() || 'Admin';
+      const role = $('accRole').value.trim() || 'Admin';
+      const country = $('accCountry').value;
+
+      try {
+        const updated = await api('/api/account', {
+          method: 'PATCH',
+          body: { name, role, country }
+        });
+
+        localStorage.setItem('lp_admin_name', updated.name || name);
+        localStorage.setItem('lp_admin_role', updated.role || role);
+        localStorage.setItem('lp_admin_country', updated.country || country);
+
+        loadAdminProfile();
+        $('accountModal').classList.remove('active');
+        toast('Account details saved to server!');
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    function sanitizeDailySeries(raw) {
+      const days = 7;
+      const result = [];
+      const map = {};
+      if (Array.isArray(raw)) {
+        raw.forEach(r => {
+          if (r && r.date) map[String(r.date).slice(0, 10)] = Number(r.clicks) || 0;
+        });
+      }
+
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${year}-${month}-${day}`;
+
+        const dayLabel = (i === 0) ? 'Today' : (i === 1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' }));
+        result.push({
+          date: iso,
+          label: dayLabel,
+          clicks: map[iso] !== undefined ? map[iso] : 0
+        });
+      }
+      return result;
+    }
+
+    function renderTrendChart(series) {
+      const data = sanitizeDailySeries(series);
+      lastChartData = data;
+      const w = 700, h = 230, pad = 35;
+      const maxVal = Math.max(...data.map(d => d.clicks), 5);
+
+      const grid = $('gridLinesGroup');
+      grid.replaceChildren();
+      for (let i = 0; i <= 3; i++) {
+        const y = pad + (i * (h - pad * 2) / 3);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', pad);
+        line.setAttribute('x2', w - pad);
+        line.setAttribute('y1', y);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', 'rgba(99, 102, 241, 0.12)');
+        line.setAttribute('stroke-dasharray', '5 5');
+        grid.appendChild(line);
+      }
+
+      const step = (w - pad * 2) / (data.length - 1);
+      const points = data.map((d, i) => {
+        const x = pad + (i * step);
+        const y = (h - pad) - ((d.clicks / maxVal) * (h - pad * 2));
+        return { x, y, clicks: d.clicks, label: d.label, date: d.date };
+      });
+
+      const barsGroup = $('barsGroup');
+      const dotsGroup = $('dotsGroup');
+      barsGroup.replaceChildren();
+      dotsGroup.replaceChildren();
+
+      if (activeChartType === 'bars') {
+        $('chartLinePath').setAttribute('d', '');
+        $('chartAreaPath').setAttribute('d', '');
+        const barW = 34;
+        points.forEach(pt => {
+          const barH = (h - pad) - pt.y;
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', pt.x - barW / 2);
+          rect.setAttribute('y', pt.y);
+          rect.setAttribute('width', barW);
+          rect.setAttribute('height', Math.max(5, barH));
+          rect.setAttribute('rx', 8);
+          rect.setAttribute('fill', 'url(#barGlow)');
+          rect.setAttribute('class', 'chart-bar-column');
+          rect.addEventListener('mouseenter', e => showTooltip(e, pt));
+          rect.addEventListener('mouseleave', hideTooltip);
+          barsGroup.appendChild(rect);
+        });
+      } else {
+        let d = `M ${points[0].x} ${points[0].y}`;
+        for (let i = 0; i < points.length - 1; i++) {
+          const curr = points[i];
+          const next = points[i + 1];
+          const cp1x = curr.x + (next.x - curr.x) / 2;
+          const cp1y = curr.y;
+          const cp2x = curr.x + (next.x - curr.x) / 2;
+          const cp2y = next.y;
+          d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+        }
+        $('chartLinePath').setAttribute('d', d);
+        $('chartAreaPath').setAttribute('d', `${d} L ${points[points.length - 1].x} ${h - pad} L ${points[0].x} ${h - pad} Z`);
+
+        points.forEach(pt => {
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', pt.x);
+          circle.setAttribute('cy', pt.y);
+          circle.setAttribute('r', 5.5);
+          circle.setAttribute('class', 'chart-node-circle');
+          circle.addEventListener('mouseenter', e => showTooltip(e, pt));
+          circle.addEventListener('mouseleave', hideTooltip);
+          dotsGroup.appendChild(circle);
+        });
+      }
+
+      $('chartDateRow').innerHTML = data.map(d => `<span>${escapeHTML(d.label)}</span>`).join('');
+    }
+
+    function showTooltip(e, pt) {
+      const tt = $('chartTooltip');
+      $('ttDate').textContent = pt.label;
+      $('ttClicks').textContent = `${pt.clicks} redirects`;
+      tt.classList.add('visible');
+      const pctX = (pt.x / 700) * 100;
+      const pctY = (pt.y / 230) * 100;
+      tt.style.left = `${pctX}%`;
+      tt.style.top = `${pctY}%`;
+    }
+
+    function hideTooltip() { $('chartTooltip').classList.remove('visible'); }
+
+    const drawerBackdrop = $('linkDrawerBackdrop');
+
+    function openDrawer(editData = null) {
+      $('drawerErrorBox').style.display = 'none';
+      const clearGroup = $('clearPasswordGroup');
+      const clearChk = $('inpClearPassword');
+
+      if (editData) {
+        $('drawerModeTag').textContent = 'Edit Mode';
+        $('drawerTitle').textContent = 'Update Short Link';
+        $('submitBtnText').textContent = 'Save Changes';
+        $('editLinkId').value = editData.id;
+        $('inpUrl').value = editData.original_url || '';
+        $('inpTitle').value = editData.title || '';
+        $('inpAlias').value = editData.custom_alias || editData.short_code || '';
+        $('inpAlias').disabled = true;
+        $('inpLimit').value = editData.click_limit || '';
+        $('inpExpiry').value = editData.expires_at ? String(editData.expires_at).slice(0, 10) : '';
+        $('inpCampaign').value = editData.campaign_id || '';
+        $('inpPassword').value = '';
+        $('inpPassword').placeholder = editData.has_password ? 'Leave empty to keep current password' : 'Leave empty for public';
+
+        if (clearGroup && clearChk) {
+          clearGroup.style.display = editData.has_password ? 'block' : 'none';
+          clearChk.checked = false;
+        }
+      } else {
+        $('drawerModeTag').textContent = 'Smart Builder';
+        $('drawerTitle').textContent = 'Create Short Link';
+        $('submitBtnText').textContent = 'Generate Short Link';
+        $('editLinkId').value = '';
+        $('createLinkForm').reset();
+        $('inpAlias').disabled = false;
+        $('inpPassword').placeholder = 'Leave empty for public';
+        $('inpCampaign').value = '';
+
+        if (clearGroup && clearChk) {
+          clearGroup.style.display = 'none';
+          clearChk.checked = false;
+        }
+      }
+      drawerBackdrop.classList.add('active');
+    }
+
+    function closeDrawer() { drawerBackdrop.classList.remove('active'); }
+
+    $('openDrawerBtn').onclick = () => openDrawer(null);
+    $('closeDrawerBtn').onclick = closeDrawer;
+    $('cancelDrawerBtn').onclick = closeDrawer;
+    $('closeQrBtn').onclick = () => $('qrModal').classList.remove('active');
+
+    drawerBackdrop.addEventListener('click', e => {
+      if (e.target === drawerBackdrop) closeDrawer();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        closeDrawer();
+        $('qrModal')?.classList.remove('active');
+        $('campaignDetailsModal')?.classList.remove('active');
+        $('accountModal')?.classList.remove('active');
+      }
+    });
+
+    $('createLinkForm').onsubmit = async e => {
+      e.preventDefault();
+      const errBox = $('drawerErrorBox');
+      errBox.style.display = 'none';
+      const btn = $('submitLinkBtn');
+      btn.disabled = true;
+
+      const editId = $('editLinkId').value;
+      const destination = $('inpUrl').value.trim();
+
+      try {
+        if (editId) {
+          const updatePayload = {
+            title: $('inpTitle').value.trim() || undefined,
+            original_url: destination,
+            click_limit: $('inpLimit').value ? Number($('inpLimit').value) : null,
+            expires_at: $('inpExpiry').value || null,
+            campaign_id: $('inpCampaign').value ? Number($('inpCampaign').value) : null
+          };
+
+          if ($('inpClearPassword')?.checked) {
+            updatePayload.clear_password = true;
+          } else if ($('inpPassword').value.trim() !== '') {
+            updatePayload.password = $('inpPassword').value.trim();
+          }
+
+          await api(`/api/links/${editId}`, {
+            method: 'PATCH',
+            body: updatePayload
+          });
+          toast('Link updated successfully!');
+        } else {
+          await api('/api/links', {
+            method: 'POST',
+            body: {
+              title: $('inpTitle').value.trim() || undefined,
+              original_url: destination,
+              custom_alias: $('inpAlias').value.trim() || undefined,
+              click_limit: $('inpLimit').value ? Number($('inpLimit').value) : undefined,
+              expires_at: $('inpExpiry').value || undefined,
+              password: $('inpPassword').value || undefined,
+              campaign_id: $('inpCampaign').value || undefined
+            }
+          });
+          toast('Short link created successfully!');
+        }
+        closeDrawer();
+        await Promise.all([loadLinks(), refreshDashboard(), loadCampaigns()]);
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    async function refreshDashboard() {
+      try {
+        const [stats, clicks, breakdown] = await Promise.all([
+          api('/api/analytics/summary').catch(() => ({})),
+          api('/api/analytics/clicks?days=7').catch(() => []),
+          api('/api/analytics/breakdown').catch(() => ({}))
+        ]);
+
+        $('valTotalClicks').textContent = Number(stats?.total_clicks || 0).toLocaleString();
+        $('valActiveLinks').textContent = Number(stats?.active_links || 0).toLocaleString();
+        $('valUniques').textContent = Number(stats?.unique_visitors || 0).toLocaleString();
+        $('valCampaigns').textContent = Number(stats?.total_campaigns || 0).toLocaleString();
+        $('sideBadgeLinks').textContent = Number(stats?.active_links || 0);
+        $('sideBadgeCampaigns').textContent = Number(stats?.total_campaigns || 0);
+
+        renderTrendChart(clicks);
+
+        const sources = breakdown?.sources || [];
+        $('sourceRows').innerHTML = sources.length ? sources.map(s => `
+          <div class="metric-progress-item">
+            <div class="progress-meta"><span>${escapeHTML(s.name)}</span><span>${Number(s.count || 0)} (${Number(s.pct || 0)}%)</span></div>
+            <div class="progress-bar-bg"><div class="progress-fill grad-azure" style="width:${Math.min(100, Math.max(0, Number(s.pct) || 0))}%"></div></div>
+          </div>`).join('') : '<p class="empty-placeholder">No traffic referrers logged yet.</p>';
+
+        const devices = breakdown?.devices || [];
+        $('deviceRows').innerHTML = devices.length ? devices.map(s => `
+          <div class="metric-progress-item">
+            <div class="progress-meta"><span>${escapeHTML(s.name)}</span><span>${Number(s.count || 0)} (${Number(s.pct || 0)}%)</span></div>
+            <div class="progress-bar-bg"><div class="progress-fill grad-violet" style="width:${Math.min(100, Math.max(0, Number(s.pct) || 0))}%"></div></div>
+          </div>`).join('') : '<p class="empty-placeholder">No device telemetry logged yet.</p>';
+
+        const countries = breakdown?.countries || [];
+        $('countryRows').innerHTML = countries.length ? countries.map(c => `
+          <div class="metric-progress-item">
+            <div class="progress-meta"><span>${escapeHTML(c.name)}</span><span>${Number(c.count || 0)} (${Number(c.pct || 0)}%)</span></div>
+            <div class="progress-bar-bg"><div class="progress-fill grad-emerald" style="width:${Math.min(100, Math.max(0, Number(c.pct) || 0))}%"></div></div>
+          </div>`).join('') : '<p class="empty-placeholder">No geographic data logged yet.</p>';
+
+      } catch (err) {
+        console.error('Dashboard error:', err);
+      }
+    }
+
+    function inspectLink(link) {
+      if (!link) {
+        $('detTitle').textContent = 'Select a link from the table below';
+        $('detUrl').textContent = 'Click anywhere on a row to inspect its telemetry';
+        $('detClicks').textContent = '0';
+        $('detSlug').textContent = '--';
+        $('detStatus').textContent = '--';
+        $('detPassword').textContent = 'None';
+        $('detCreated').textContent = '--';
+        return;
+      }
+      selectedLinkId = link.id;
+      $('detTitle').textContent = link.title || 'Untitled Link';
+      $('detUrl').textContent = link.original_url;
+      $('detClicks').textContent = Number(link.click_count || 0).toLocaleString();
+      $('detSlug').textContent = link.custom_alias || link.short_code;
+      $('detStatus').textContent = (link.status || 'active').toUpperCase();
+      $('detPassword').textContent = link.has_password ? 'Protected' : 'None';
+      $('detCreated').textContent = String(link.created_at || '').slice(0, 10);
+      renderLinks(filteredLinks());
+    }
+
+    async function loadLinks() {
+      try {
+        cachedLinks = await api('/api/links');
+        renderLinks(filteredLinks());
+        if (cachedLinks.length > 0) {
+          updateSpotlight(cachedLinks[0]);
+          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
+            inspectLink(cachedLinks[0]);
+          }
+        } else {
+          inspectLink(null);
+          $('spotlightTitle').textContent = 'Select or create a link';
+          $('spotlightDest').textContent = 'https://example.com';
+          $('spotlightShortUrl').value = 'https://linkpulse.io/latest';
+          $('spotlightQrBox').replaceChildren();
+        }
+      } catch (err) {
+        console.error('Failed to load links:', err);
+        toast(err.message);
+      }
+    }
+
+    function filteredLinks() {
+      const q = $('searchInput').value.trim().toLowerCase();
+      const status = $('statusFilter').value;
+      return cachedLinks.filter(l => {
+        const matchesQ = [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || ''].some(v => String(v).toLowerCase().includes(q));
+        const matchesStatus = (status === 'all') || (status === l.status);
+        return matchesQ && matchesStatus;
+      });
+    }
+
+    function renderLinks(links) {
+      $('linksTbody').innerHTML = links.map(l => {
+        const code = escapeHTML(l.custom_alias || l.short_code);
+        const shortUrl = escapeHTML(l.short_url);
+        const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
+        const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
+
+        return `<tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="Click row to inspect">
+          <td>
+            <div class="table-link-meta">
+              <span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
+              <span class="table-dest" title="${escapeHTML(l.original_url)}">${escapeHTML(l.original_url)}</span>
+            </div>
+          </td>
+          <td><a href="${shortUrl}" target="_blank" rel="noopener" class="code-link-badge">${code}</a></td>
+          <td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
+          <td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
+          <td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
+          <td style="text-align: right;">
+            <div class="table-action-row">
+              <button class="action-icon-btn btn-simulate" data-action="test-click" data-id="${Number(l.id)}" title="Simulate 1 Click">⚡ Test</button>
+              <button class="action-icon-btn" data-action="qr" data-id="${Number(l.id)}" title="QR Code">▦</button>
+              <button class="action-icon-btn" data-action="edit" data-id="${Number(l.id)}" title="Edit Link">✎</button>
+              <button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}">${status === 'active' ? '⏸' : '▶'}</button>
+              <button class="action-icon-btn btn-danger-action" data-action="delete" data-id="${Number(l.id)}">✕</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="6" class="table-empty">No short links found. Create one above!</td></tr>';
+
+      const elAnalytics = $('linksTbodyAnalytics');
+      if (elAnalytics) {
+        elAnalytics.innerHTML = links.map(l => {
+          const code = escapeHTML(l.custom_alias || l.short_code);
+          const shortUrl = escapeHTML(l.short_url);
+          const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
+          const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
+
+          return `<tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="Click row to inspect live telemetry">
+            <td>
+              <div class="table-link-meta">
+                <span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
+                <span class="table-dest" title="${escapeHTML(l.original_url)}">${escapeHTML(l.original_url)}</span>
+              </div>
+            </td>
+            <td><a href="${shortUrl}" target="_blank" rel="noopener" class="code-link-badge">${code}</a></td>
+            <td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
+            <td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
+            <td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="5" class="table-empty">No short links found.</td></tr>';
+      }
+    }
+
+    function updateSpotlight(link) {
+      if (!link) return;
+      $('spotlightTitle').textContent = link.title || 'Untitled Link';
+      $('spotlightDest').textContent = link.original_url || '';
+      $('spotlightShortUrl').value = link.short_url || '';
+      $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
+      $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code, '#spotlightQrBox');
+      const box = $('spotlightQrBox');
+      box.replaceChildren();
+      if (typeof QRCode !== 'undefined') new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+    }
+
+    async function copyLink(url) {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied!');
+      } catch {
+        toast(`Copy: ${url}`);
+      }
+    }
+
+    function openQr(url, code) {
+      $('qrUrlLabel').textContent = url;
+      $('qrModal').classList.add('active');
+      const box = $('qrCanvasBox');
+      box.replaceChildren();
+      if (typeof QRCode !== 'undefined') new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
+      $('downloadQrBtn').onclick = () => downloadQr(code, '#qrCanvasBox');
+    }
+
+    function downloadQr(code, containerSelector = '#qrCanvasBox') {
+      const container = document.querySelector(containerSelector);
+      const canvas = container ? container.querySelector('canvas') : null;
+      if (canvas) {
+        const a = document.createElement('a');
+        a.download = `qr-${code || 'shortlink'}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+        toast('QR PNG downloaded!');
+      } else {
+        toast('Unable to locate QR canvas.');
+      }
+    }
+
+    $('quickShortenBtn').onclick = async () => {
+      const url = $('quickUrlInput').value.trim();
+      if (!url) return toast('Please enter a destination URL.');
+      try {
+        await api('/api/links', { method: 'POST', body: { original_url: url } });
+        $('quickUrlInput').value = '';
+        toast('Short link created!');
+        await Promise.all([loadLinks(), refreshDashboard()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    $('quickUrlInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('quickShortenBtn').click();
+      }
+    });
+
+    document.addEventListener('click', e => {
+      const row = e.target.closest('tr.clickable-row');
+      if (!row) return;
+      if (e.target.closest('[data-action]') || e.target.closest('a')) return;
+
+      const id = Number(row.dataset.linkId);
+      const link = cachedLinks.find(l => l.id === id);
+      if (link) {
+        inspectLink(link);
+        toast(`Inspecting: ${link.title || link.short_code}`);
+      }
+    });
+
+    document.addEventListener('click', async e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const link = cachedLinks.find(l => Number(l.id) === Number(btn.dataset.id));
+      if (!link) return;
+
+      if (btn.dataset.action === 'qr') return openQr(link.short_url, link.custom_alias || link.short_code);
+      if (btn.dataset.action === 'edit') return openDrawer(link);
+      if (btn.dataset.action === 'test-click') {
+        try {
+          await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
+          toast(`⚡ Simulated 1 click! Watch the graph update.`);
+          return Promise.all([loadLinks(), refreshDashboard()]);
+        } catch (err) {
+          toast(err.message);
+        }
+      }
+      if (btn.dataset.action === 'toggle') {
+        const next = link.status === 'active' ? 'disabled' : 'active';
+        await api(`/api/links/${link.id}/status`, { method: 'PATCH', body: { status: next } });
+        toast(`Link marked as ${next}`);
+        return Promise.all([loadLinks(), refreshDashboard()]);
+      }
+      if (btn.dataset.action === 'delete') {
+        if (!confirm('Are you sure you want to delete this short link?')) return;
+        await api(`/api/links/${link.id}`, { method: 'DELETE' });
+        toast('Link deleted');
+        return Promise.all([loadLinks(), refreshDashboard()]);
+      }
+    });
+
+    async function openCampaignModal(campaignId) {
+      try {
+        const res = await api(`/api/campaigns/${campaignId}/details`);
+        const { campaign, assigned_links, all_links } = res;
+
+        $('editCampId').value = campaign.id;
+        $('editCampName').value = campaign.name;
+        $('editCampTag').value = campaign.tag;
+        $('campModalHeading').textContent = 'Edit Details';
+        $('campModalMeta').textContent = `Tag: #${campaign.tag} · Created: ${String(campaign.created_at || '').slice(0, 10)}`;
+
+        const unassigned = all_links.filter(l => l.campaign_id !== campaign.id);
+        
+        $('selectLinkToAdd').innerHTML = unassigned.map(l => 
+          `<option value="${l.id}">${escapeHTML(l.title || l.custom_alias || l.short_code)}</option>`
+        ).join('') || '<option value="">All links assigned</option>';
+
+        const menu = $('customDropdownMenu');
+        menu.innerHTML = '';
+
+        if (unassigned.length > 0) {
+          $('selectLinkToAdd').value = unassigned[0].id;
+          $('customDropdownLabel').textContent = unassigned[0].title || unassigned[0].custom_alias || unassigned[0].short_code;
+
+          unassigned.forEach((link, idx) => {
+            const item = document.createElement('div');
+            item.className = `custom-dropdown-item ${idx === 0 ? 'active' : ''}`;
+            item.textContent = link.title || link.custom_alias || link.short_code;
+            item.onclick = (e) => {
+              e.stopPropagation();
+              $('selectLinkToAdd').value = link.id;
+              $('customDropdownLabel').textContent = link.title || link.custom_alias || link.short_code;
+              document.querySelectorAll('.custom-dropdown-item').forEach(el => el.classList.remove('active'));
+              item.classList.add('active');
+              $('customLinkDropdown').classList.remove('open');
+            };
+            menu.appendChild(item);
+          });
+        } else {
+          $('selectLinkToAdd').value = '';
+          $('customDropdownLabel').textContent = 'All links assigned';
+          menu.innerHTML = '<div style="padding:0.6rem;font-size:0.8rem;color:#94a3b8;text-align:center;">No available links</div>';
+        }
+
+        $('campAssignedLinksList').innerHTML = assigned_links.length ? assigned_links.map(l => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.95rem; background: rgba(248, 250, 252, 0.95); border: 1.5px solid #e2e8f0; border-radius: 12px;">
+            <div style="min-width: 0; max-width: 80%;">
+              <strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.custom_alias || l.short_code)}</strong>
+              <span style="display: block; font-size: 0.78rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.original_url)} · ${l.click_count || 0} clicks</span>
+            </div>
+            <button class="action-icon-btn btn-danger-action" onclick="removeLinkFromCampaign(${campaign.id}, ${l.id})" title="Remove link from campaign" style="width:28px;height:28px;font-size:0.8rem;">✕</button>
+          </div>
+        `).join('') : '<p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>';
+
+        $('campaignDetailsModal').classList.add('active');
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    $('btnAddLinkToCamp').onclick = async () => {
+      const campId = Number($('editCampId').value);
+      const linkId = Number($('selectLinkToAdd').value);
+      if (!campId || !linkId) return toast('Please select an available link to add.');
+
+      try {
+        await api(`/api/campaigns/${campId}/assign-link`, {
+          method: 'POST',
+          body: { link_id: linkId, action: 'add' }
+        });
+        toast('Link added to campaign!');
+        await openCampaignModal(campId);
+        await Promise.all([loadLinks(), loadCampaigns()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    $('editCampForm').onsubmit = async e => {
+      e.preventDefault();
+      const id = Number($('editCampId').value);
+      const name = $('editCampName').value.trim();
+      const tag = $('editCampTag').value.trim();
+
+      if (!id || !name) return toast('Campaign name is required.');
+
+      try {
+        await api(`/api/campaigns/${id}`, {
+          method: 'PATCH',
+          body: { name, tag }
+        });
+        toast('Campaign details updated!');
+        $('campaignDetailsModal').classList.remove('active');
+        await Promise.all([loadCampaigns(), loadLinks()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    $('customDropdownBtn').onclick = (e) => {
+      e.stopPropagation();
+      $('customLinkDropdown').classList.toggle('open');
+    };
+
+    document.addEventListener('click', (e) => {
+      if (!$('customLinkDropdown')?.contains(e.target)) {
+        $('customLinkDropdown')?.classList.remove('open');
+      }
+    });
+
+    async function removeLinkFromCampaign(campId, linkId) {
+      try {
+        await api(`/api/campaigns/${campId}/assign-link`, {
+          method: 'POST',
+          body: { link_id: Number(linkId), action: 'remove' }
+        });
+        toast('Link removed from campaign.');
+        openCampaignModal(campId);
+        await Promise.all([loadLinks(), loadCampaigns()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    async function loadCampaigns() {
+      try {
+        cachedCampaigns = await api('/api/campaigns');
+        $('campaignCount').textContent = `${cachedCampaigns.length} campaigns`;
+        $('campaignRows').innerHTML = cachedCampaigns.map(c => `
+          <div class="campaign-tile-card">
+            <div class="camp-top-row">
+              <span class="camp-name">${escapeHTML(c.name)}</span>
+              <div style="display: flex; gap: 0.45rem; align-items: center;">
+                <button class="action-icon-btn" data-camp-edit="${c.id}" title="Edit Campaign" style="width:26px;height:26px;font-size:0.75rem;">✎</button>
+                <button class="camp-del-cross" data-camp-del="${c.id}" title="Delete Campaign">✕</button>
+              </div>
+            </div>
+            <span class="camp-tag">#${escapeHTML(c.tag || 'general')}</span>
+            <div class="camp-footer-metrics">
+              <span><strong>${Number(c.link_count || 0)}</strong> links</span>
+              <span><strong>${Number(c.click_count || 0)}</strong> clicks</span>
+            </div>
+          </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
+
+        $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' + cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+      } catch (err) {
+        console.error('Campaigns error:', err);
+      }
+    }
+
+    $('campaignForm').onsubmit = async e => {
+      e.preventDefault();
+      try {
+        await api('/api/campaigns', { method: 'POST', body: { name: $('campaignName').value.trim(), tag: $('campaignTag').value.trim() } });
+        $('campaignForm').reset();
+        toast('Campaign created.');
+        await Promise.all([loadCampaigns(), refreshDashboard()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    $('campaignRows').addEventListener('click', async e => {
+      const editBtn = e.target.closest('[data-camp-edit]');
+      if (editBtn) {
+        const id = Number(editBtn.dataset.campEdit);
+        openCampaignModal(id);
+        return;
+      }
+
+      const delBtn = e.target.closest('[data-camp-del]');
+      if (delBtn) {
+        const id = Number(delBtn.dataset.campDel);
+        if (!confirm('Delete campaign? Assigned links will remain in your workspace.')) return;
+        await api(`/api/campaigns/${id}`, { method: 'DELETE' });
+        toast('Campaign removed.');
+        await Promise.all([loadCampaigns(), loadLinks(), refreshDashboard()]);
+      }
+    });
+
+    $('searchInput').oninput = () => renderLinks(filteredLinks());
+    $('statusFilter').onchange = () => renderLinks(filteredLinks());
+    $('btnChartSpline').onclick = () => { activeChartType = 'spline'; $('btnChartSpline').classList.add('active'); $('btnChartBars').classList.remove('active'); renderTrendChart(lastChartData); };
+    $('btnChartBars').onclick = () => { activeChartType = 'bars'; $('btnChartBars').classList.add('active'); $('btnChartSpline').classList.remove('active'); renderTrendChart(lastChartData); };
+
+    $('exportCsvBtn').onclick = () => { window.location.href = '/api/links/export'; };
+    $('importCsvBtn').onclick = () => $('csvFileInput').click();
+    $('csvFileInput').onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const res = await api('/api/links/import', { method: 'POST', body: fd });
+        toast(`Imported ${res.imported} links.`);
+        await Promise.all([loadLinks(), refreshDashboard()]);
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        e.target.value = '';
+      }
+    };
+
+    $('inpExpiry').min = new Date().toISOString().slice(0, 10);
+
+    Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
+    setInterval(() => { refreshDashboard(); loadLinks(); }, 25000);
+  </script>
+</body>
+
+</html>
