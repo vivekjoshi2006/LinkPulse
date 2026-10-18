@@ -342,11 +342,11 @@ def api_google_auth():
         cur = db.cursor()
         cur.execute("""
             INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
-            VALUES (%s, %s, NULL, 'India', 25, 'Analyst', 'google')
+            VALUES (%s, %s, NULL, 'India', 25, 'Admin', 'google')
         """, (name, email))
         user_id = cur.lastrowid
         db.commit()
-        role = "Analyst"
+        role = "Admin"
         country = "India"
     else:
         if user.get("auth_provider") != "google" and user.get("password_hash"):
