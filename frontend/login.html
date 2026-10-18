@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — LinkPulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --font: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --bg-base: #f8fafc;
+      --text-main: #0f172a;
+      --text-title: #1e1b4b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      
+      /* Vibrant Gradients */
+      --grad-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 45%, #06b6d4 100%);
+      --grad-primary-hover: linear-gradient(135deg, #4338ca 0%, #6d28d9 45%, #0891b2 100%);
+      --grad-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.65) 100%);
+      --grad-text: linear-gradient(135deg, #1e1b4b 0%, #4338ca 60%, #06b6d4 100%);
+      --grad-pill: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%);
+      
+      /* Glassmorphism */
+      --glass-border: rgba(255, 255, 255, 0.85);
+      --glass-border-subtle: rgba(226, 232, 240, 0.75);
+      --glass-shadow: 
+        0 30px 80px -15px rgba(79, 70, 229, 0.18),
+        0 15px 35px -5px rgba(15, 23, 42, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    body {
+      font-family: var(--font);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-base);
+      overflow-x: hidden;
+      overflow-y: auto;
+      position: relative;
+      padding: 1.5rem;
+    }
+
+    /* Background */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: 
+        radial-gradient(at 15% 15%, rgba(199, 210, 254, 0.55) 0px, transparent 48%),
+        radial-gradient(at 85% 12%, rgba(254, 215, 170, 0.42) 0px, transparent 45%),
+        radial-gradient(at 50% 50%, rgba(207, 250, 254, 0.45) 0px, transparent 55%),
+        radial-gradient(at 88% 85%, rgba(244, 214, 248, 0.45) 0px, transparent 50%),
+        radial-gradient(at 12% 88%, rgba(253, 230, 138, 0.4) 0px, transparent 48%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Spheres */
+    .ambient-sphere {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(85px);
+      pointer-events: none;
+      z-index: 2;
+      opacity: 0.7;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform;
+    }
+    .sphere-1 { width: 480px; height: 480px; background: radial-gradient(circle, rgba(129, 140, 248, 0.85) 0%, rgba(99, 102, 241, 0.35) 70%, transparent 100%); top: -100px; left: -100px; }
+    .sphere-2 { width: 520px; height: 520px; background: radial-gradient(circle, rgba(251, 146, 60, 0.65) 0%, rgba(244, 114, 182, 0.3) 70%, transparent 100%); bottom: -120px; right: -100px; }
+    .sphere-3 { width: 380px; height: 380px; background: radial-gradient(circle, rgba(45, 212, 191, 0.7) 0%, rgba(59, 130, 246, 0.3) 70%, transparent 100%); top: 45%; left: 55%; }
+
+    /* Glass Card */
+    .login-card {
+      position: relative;
+      width: 100%;
+      max-width: 460px;
+      margin: auto;
+      background: var(--grad-surface);
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+      border: 1px solid var(--glass-border);
+      border-radius: 2rem;
+      box-shadow: var(--glass-shadow);
+      padding: 2.75rem 2.25rem;
+      z-index: 10;
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      overflow: hidden;
+    }
+
+    .login-card.shake {
+      animation: shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-3px, 0, 0); }
+      20%, 80% { transform: translate3d(5px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
+      40%, 60% { transform: translate3d(7px, 0, 0); }
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--grad-primary);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 10px 24px rgba(79, 70, 229, 0.35);
+    }
+    .brand-icon svg { width: 22px; height: 22px; }
+
+    .brand-title {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: var(--grad-text);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .login-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--text-title);
+      text-align: center;
+      letter-spacing: -0.03em;
+    }
+    
+    .login-sub {
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0.35rem 0 1.5rem;
+    }
+
+    .quick-fill-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.65rem 1rem;
+      margin-bottom: 1.35rem;
+      background: var(--grad-pill);
+      border: 1px dashed rgba(99, 102, 241, 0.45);
+      border-radius: 0.95rem;
+      color: #4f46e5;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.22s ease;
+    }
+    .quick-fill-btn:hover {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: #6366f1;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1.15rem;
+      text-align: left;
+    }
+    .field-group label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-title);
+    }
+
+    .glass-input {
+      width: 100%;
+      padding: 0.8rem 1.1rem;
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1.5px solid var(--glass-border-subtle);
+      color: var(--text-main);
+      font-size: 0.92rem;
+      font-weight: 500;
+      outline: none;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    .glass-input:focus {
+      border-color: #6366f1;
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    .pass-wrap { position: relative; display: flex; align-items: center; }
+    .pass-wrap .glass-input { padding-right: 4.25rem; }
+    .toggle-pass {
+      position: absolute;
+      right: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(241, 245, 249, 0.9);
+      border: 1px solid rgba(203, 213, 225, 0.6);
+      border-radius: 0.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 0.9rem 1.5rem;
+      border-radius: 0.95rem;
+      background: var(--grad-primary);
+      color: #ffffff;
+      font-size: 0.96rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.32);
+      transition: all 0.25s ease;
+      margin-top: 0.4rem;
+    }
+    .btn-submit:hover {
+      background: var(--grad-primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.42);
+    }
+
+    .error-box {
+      background: rgba(254, 242, 242, 0.95);
+      border: 1px solid rgba(252, 165, 165, 0.85);
+      color: #dc2626;
+      padding: 0.65rem 1rem;
+      border-radius: 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 1.15rem;
+      display: none;
+    }
+
+    .hackathon-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1.75rem;
+      padding: 0.45rem 1rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid var(--glass-border-subtle);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #4f46e5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-sphere sphere-1" id="sphere1"></div>
+  <div class="ambient-sphere sphere-2" id="sphere2"></div>
+  <div class="ambient-sphere sphere-3" id="sphere3"></div>
+
+  <div class="login-card" id="loginCard">
+    <div class="brand-row">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+      </div>
+      <span class="brand-title">LinkPulse</span>
+    </div>
+
+    <h1 class="login-title">Workspace Portal</h1>
+    <p class="login-sub">Enter your details and sign in to access governance.</p>
+
+    <button type="button" class="quick-fill-btn" id="btnQuickDemo">
+      <span>⚡ Fill Credentials</span>
+      <span style="opacity: 0.75;">(CWC / 123)</span>
+    </button>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <form id="loginForm">
+      <!-- Full Name -->
+      <div class="field-group">
+        <label for="inpName">Your Name</label>
+        <input type="text" id="inpName" class="glass-input" placeholder="Your Name" required />
+      </div>
+
+      <div class="field-group">
+        <label for="inpUser">Username</label>
+        <input type="text" id="inpUser" class="glass-input" placeholder="username" required />
+      </div>
+
+      <div class="field-group">
+        <label for="inpPass">Password</label>
+        <div class="pass-wrap">
+          <input type="password" id="inpPass" class="glass-input" placeholder="••••••••" required />
+          <button type="button" class="toggle-pass" id="btnTogglePass">Show</button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnSubmit">
+        <span id="btnText">Authenticate & Launch →</span>
+      </button>
+    </form>
+
+    <div class="hackathon-badge">
+      <span>⚡ Team Code with Caos</span>
+      <span>•</span>
+      <span style="color: #64748b;">Hackathon Edition</span>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    // Mouse effect
+    document.addEventListener('mousemove', e => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 35;
+      const y = (e.clientY / window.innerHeight - 0.5) * 35;
+      $('sphere1').style.transform = `translate(${x}px, ${y}px)`;
+      $('sphere2').style.transform = `translate(${-x}px, ${-y}px)`;
+      $('sphere3').style.transform = `translate(${y}px, ${-x}px)`;
+    });
+
+    // Password Toggle
+    $('btnTogglePass').onclick = () => {
+      const isPass = $('inpPass').type === 'password';
+      $('inpPass').type = isPass ? 'text' : 'password';
+      $('btnTogglePass').textContent = isPass ? 'Hide' : 'Show';
+    };
+
+    // Quick Fill Button
+    $('btnQuickDemo').onclick = () => {
+      $('inpName').value = 'username';
+      $('inpUser').value = 'CWC';
+      $('inpPass').value = '123';
+      $('errorBox').style.display = 'none';
+    };
+
+    // Login Submit
+    $('loginForm').onsubmit = async e => {
+      e.preventDefault();
+      const errBox = $('errorBox');
+      const submitBtn = $('btnSubmit');
+      const btnText = $('btnText');
+      const card = $('loginCard');
+
+      errBox.style.display = 'none';
+      submitBtn.disabled = true;
+      btnText.textContent = 'Verifying credentials...';
+
+      const enteredName = $('inpName').value.trim() || 'Admin User';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: $('inpUser').value.trim(),
+            password: $('inpPass').value.trim()
+          })
+        });
+
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error?.message || 'Authentication failed.');
+
+        // Save User Details & set Role Admin
+        localStorage.setItem('lp_admin_name', enteredName);
+        localStorage.setItem('lp_admin_role', 'Admin');
+
+        btnText.textContent = 'Launching Workspace ✓';
+        card.style.transform = 'scale(0.96)';
+        card.style.opacity = '0.7';
+        window.location.href = '/';
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+
+        submitBtn.disabled = false;
+        btnText.textContent = 'Authenticate & Launch →';
+      }
+    };
+  </script>
+</body>
+</html>
