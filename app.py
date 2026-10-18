@@ -16,6 +16,7 @@ from helpers import (
 app = Flask(__name__, static_folder=None)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
+initialize_database(Config)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
