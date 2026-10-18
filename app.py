@@ -41,7 +41,17 @@ def iso(val):
     return val
 
 def short_url_for(code):
-    return f"{app.config['PUBLIC_BASE_URL']}/{code}"
+    base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
+    
+    if not base or "127.0.0.1" in base or "localhost" in base:
+        try:
+            proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+            host = request.host
+            base = f"{proto}://{host}"
+        except Exception:
+            base = "http://127.0.0.1:5000"
+            
+    return f"{base}/{code}"
 
 def row_to_link(row):
     return {
