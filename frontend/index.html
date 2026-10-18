@@ -189,7 +189,7 @@
     <main class="main-viewport">
       <header class="glass-header">
         <div class="header-left">
-          <div class="header-tag">Telemetry Workspace</div>
+          <div class="header-tag">Workspace</div>
           <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
           <p class="header-subtitle">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
         </div>
@@ -263,7 +263,7 @@
               <div>
                 <span class="section-tag-soft">Activity Dynamics</span>
                 <h3 class="box-title">Click & Redirect Volume</h3>
-                <p class="box-sub">Rolling 7-day timeline (Past 7 days up to Today).</p>
+                <p class="box-sub">Rolling 7-day timeline (Yesterday, Today, and Upcoming).</p>
               </div>
               <div class="chart-action-cluster">
                 <div class="chart-toggle-switch">
@@ -483,7 +483,7 @@
         </div>
       </section>
 
-      <!-- Tab 4: Anout Us -->
+      <!-- Tab 4: About Us -->
       <section class="tab-pane" id="tab-about">
         <div class="glass-container about-hero-box">
           <div class="hackathon-tag-pill">
@@ -503,8 +503,7 @@
           <p
             style="font-size: 1.05rem; color: var(--text-body); max-width: 660px; margin: 0 auto 1.5rem; line-height: 1.6;">
             Built with passion as an innovative Hackathon project to deliver real-time edge link governance, sub-40ms
-            atomic
-            redirection, and privacy-shielded telemetry without slowing users down.
+            atomic redirection, and privacy-shielded telemetry without slowing users down.
           </p>
 
           <div class="about-divider"></div>
@@ -549,7 +548,7 @@
     </main>
   </div>
 
-  <!-- Centered Modal For Edit -->
+  <!-- Centered Modal For Edit Link -->
   <div class="drawer-backdrop" id="linkDrawerBackdrop">
     <div class="drawer-panel" id="linkDrawer">
       <div class="drawer-header">
@@ -623,7 +622,7 @@
     </div>
   </div>
 
-  <!-- Campaign -->
+  <!-- Campaign Details Modal -->
   <div class="drawer-backdrop" id="campaignDetailsModal">
     <div class="drawer-panel"
       style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
@@ -1180,7 +1179,7 @@
     async function loadLinks() {
       try {
         const resData = await api('/api/links'); 
-        cachedLinks = Array.isArray(data) ? data : [];
+        cachedLinks = Array.isArray(resData) ? resData : [];
         renderLinks(filteredLinks());
         if (cachedLinks.length > 0) {
           updateSpotlight(cachedLinks[0]);
@@ -1338,6 +1337,7 @@
       const link = cachedLinks.find(l => l.id === id);
       if (link) {
         inspectLink(link);
+        updateSpotlight(link); // Updates spotlight card on row click
         toast(`Inspecting: ${link.title || link.short_code}`);
       }
     });
@@ -1384,7 +1384,7 @@
         $('campModalHeading').textContent = 'Edit Details';
         $('campModalMeta').textContent = `Tag: #${campaign.tag} · Created: ${String(campaign.created_at || '').slice(0, 10)}`;
 
-        const unassigned = all_links.filter(l => l.campaign_id !== campaign.id);
+        const unassigned = (all_links || []).filter(l => l.campaign_id !== campaign.id);
 
         $('selectLinkToAdd').innerHTML = unassigned.map(l =>
           `<option value="${l.id}">${escapeHTML(l.title || l.custom_alias || l.short_code)}</option>`
@@ -1417,7 +1417,7 @@
           menu.innerHTML = '<div style="padding:0.6rem;font-size:0.8rem;color:#94a3b8;text-align:center;">No available links</div>';
         }
 
-        $('campAssignedLinksList').innerHTML = assigned_links.length ? assigned_links.map(l => `
+        $('campAssignedLinksList').innerHTML = (assigned_links && assigned_links.length) ? assigned_links.map(l => `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.95rem; background: rgba(248, 250, 252, 0.95); border: 1.5px solid #e2e8f0; border-radius: 12px;">
             <div style="min-width: 0; max-width: 80%;">
               <strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.custom_alias || l.short_code)}</strong>
@@ -1497,28 +1497,66 @@
       }
     }
 
-    async function loadLinks() {
+    async function loadCampaigns() {
       try {
-        const resData = await api('/api/links'); 
-        cachedLinks = Array.isArray(resData) ? resData : []; // ✅ Fixed
-        renderLinks(filteredLinks());
-        if (cachedLinks.length > 0) {
-          updateSpotlight(cachedLinks[0]);
-          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
-            inspectLink(cachedLinks[0]);
-          }
-        } else {
-          inspectLink(null);
-          $('spotlightTitle').textContent = 'Select or create a link';
-          $('spotlightDest').textContent = 'https://example.com';
-          $('spotlightShortUrl').value = 'https://linkpulse.io/latest';
-          $('spotlightQrBox').replaceChildren();
+        const data = await api('/api/campaigns');
+        cachedCampaigns = Array.isArray(data) ? data : [];
+        if ($('campaignCount')) {
+          $('campaignCount').textContent = `${cachedCampaigns.length} campaigns`;
+        }
+        if ($('campaignRows')) {
+          $('campaignRows').innerHTML = cachedCampaigns.map(c => `
+            <div class="campaign-tile-card">
+              <div class="camp-top-row">
+                <span class="camp-name">${escapeHTML(c.name)}</span>
+                <div style="display: flex; gap: 0.45rem; align-items: center;">
+                  <button class="action-icon-btn" data-camp-edit="${c.id}" title="Edit Campaign" style="width:26px;height:26px;font-size:0.75rem;">✎</button>
+                  <button class="camp-del-cross" data-camp-del="${c.id}" title="Delete Campaign">✕</button>
+                </div>
+              </div>
+              <span class="camp-tag">#${escapeHTML(c.tag || 'general')}</span>
+              <div class="camp-footer-metrics">
+                <span><strong>${Number(c.link_count || 0)}</strong> links</span>
+                <span><strong>${Number(c.click_count || 0)}</strong> clicks</span>
+              </div>
+            </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
+        }
+
+        if ($('inpCampaign')) {
+          $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' + cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
         }
       } catch (err) {
-        console.error('Failed to load links:', err);
-        toast(err.message);
+        console.error('Campaigns error:', err);
       }
     }
+
+    $('campaignForm').onsubmit = async e => {
+      e.preventDefault();
+      const nameInput = $('campaignName');
+      const tagInput = $('campaignTag');
+      const name = nameInput.value.trim();
+      const tag = tagInput.value.trim();
+
+      if (!name) return toast('Campaign name is required.');
+
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        await api('/api/campaigns', {
+          method: 'POST',
+          body: { name, tag }
+        });
+        nameInput.value = '';
+        tagInput.value = '';
+        toast('Campaign created successfully!');
+        await Promise.all([loadCampaigns(), refreshDashboard()]);
+      } catch (err) {
+        toast(err.message || 'Failed to create campaign.');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    };
 
     $('campaignRows').addEventListener('click', async e => {
       const editBtn = e.target.closest('[data-camp-edit]');
