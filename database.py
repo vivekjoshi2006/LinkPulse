@@ -125,7 +125,7 @@ def query_one(sql, params=()):
 
 def initialize_database(cfg):
     global ACTIVE_ENGINE
-    if cfg.DB_ENGINE == "mysql":
+    if cfg.DB_ENGINE in ("mysql", "auto"):
         try:
             conn = pymysql.connect(
                 host=cfg.DB_HOST, port=cfg.DB_PORT, user=cfg.DB_USER,
