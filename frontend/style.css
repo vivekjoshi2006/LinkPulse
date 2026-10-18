@@ -1239,46 +1239,311 @@ tr.selected-row {
 .av-5 { background: linear-gradient(135deg, #06b6d4, #3b82f6); }
 .member-meta strong { display: block; font-size: 0.95rem; color: var(--text-headline); }
 
-/* Responsiveness  */
+/* Responsiveness */
 
-@media (max-width: 1024px) {
-  .dashboard-split { grid-template-columns: 1fr !important; }
-  .breakdown-grid { grid-template-columns: 1fr !important; gap: 1.25rem !important; }
-  .stats-ribbon { grid-template-columns: repeat(2, 1fr) !important; gap: 1rem !important; }
+/* Desktops */
+@media (max-width: 1200px) {
+  .dashboard-split {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+
+  .breakdown-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1.25rem !important;
+  }
+
+  .breakdown-grid .breakdown-card:last-child {
+    grid-column: span 2;
+  }
+
+  .campaign-create-form {
+    grid-template-columns: 1.5fr 1fr auto !important;
+  }
 }
 
-@media (max-width: 768px) {
-  .main-viewport { padding: 1.25rem 1rem !important; }
-  .glass-header { flex-direction: column; align-items: flex-start !important; gap: 1rem !important; }
-  .header-actions { width: 100%; flex-wrap: wrap; gap: 0.6rem !important; }
-  .header-actions .btn-glass, .header-actions .btn-gradient { flex: 1 1 auto; justify-content: center; }
-  .stats-ribbon { grid-template-columns: 1fr !important; }
-  .quick-bar { flex-direction: column !important; padding: 1rem !important; }
-  .quick-input-group { width: 100% !important; }
-  .quick-bar .btn-gradient { width: 100% !important; justify-content: center; }
-  .table-top-bar { flex-direction: column; align-items: flex-start !important; gap: 0.85rem !important; }
-  .table-filters-row { width: 100%; flex-direction: column; }
-  .search-glass-field, .select-glass-field { width: 100% !important; }
-  .responsive-table-scroll { width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-  .glass-table { min-width: 650px !important; }
-  .drawer-panel { max-width: 95vw !important; padding: 1.5rem 1.25rem !important; border-radius: 1.35rem !important; }
-  .form-grid-two { grid-template-columns: 1fr !important; gap: 0.85rem !important; }
-  .campaign-create-form { grid-template-columns: 1fr !important; }
-  .details-grid-cards { grid-template-columns: repeat(2, 1fr) !important; }
+/* Tablets */
+@media (max-width: 1024px) {
+  html, body {
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .app-layout {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .main-viewport {
+    height: auto !important;
+    overflow-y: visible !important;
+    flex: 1 !important;
+    padding: 1.75rem 1.5rem !important;
+    width: 100% !important;
+  }
 
   .sidebar {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
-    width: 270px !important;
+    width: 280px !important;
     transform: translateX(-100%);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.18);
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 25px 0 60px rgba(15, 23, 42, 0.22);
+    z-index: 900 !important; 
   }
-  .sidebar:not(.collapsed) { transform: translateX(0) !important; }
-  .sidebar.collapsed { transform: translateX(-100%) !important; }
-  .btn-edge-toggle { right: -36px !important; border-radius: 0 10px 10px 0 !important; width: 34px !important; height: 38px !important; }
+
+  .sidebar:not(.collapsed) {
+    transform: translateX(0) !important;
+  }
+
+  .sidebar.collapsed {
+    transform: translateX(-100%) !important;
+  }
+
+  .btn-edge-toggle {
+    right: -42px !important;
+    top: 1.5rem !important;
+    width: 42px !important;
+    height: 44px !important;
+    border-radius: 0 12px 12px 0 !important;
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 4px 4px 16px rgba(79, 70, 229, 0.35) !important;
+  }
+
+  .stats-ribbon {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .details-grid-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+}
+
+/* Phones */
+@media (max-width: 768px) {
+  .main-viewport {
+    padding: 1.25rem 0.85rem !important;
+  }
+
+  .glass-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 1.15rem !important;
+    margin-bottom: 1.35rem !important;
+  }
+
+  .header-title {
+    font-size: 1.85rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .header-subtitle {
+    font-size: 0.88rem !important;
+  }
+
+  .header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  .header-actions #exportCsvBtn,
+  .header-actions #importCsvBtn {
+    grid-column: span 1 !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .header-actions #openDrawerBtn {
+    grid-column: span 2 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.85rem !important;
+  }
+
+  .stats-ribbon {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+  }
+
+  .stat-card {
+    padding: 1.15rem !important;
+  }
+
+  .stat-value {
+    font-size: 2rem !important;
+  }
+
+  .quick-bar {
+    flex-direction: column !important;
+    padding: 1rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .quick-input-group {
+    width: 100% !important;
+  }
+
+  .quick-bar .btn-gradient {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .breakdown-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .breakdown-grid .breakdown-card:last-child {
+    grid-column: span 1 !important;
+  }
+
+  .table-top-bar {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.85rem !important;
+  }
+
+  .table-filters-row {
+    width: 100% !important;
+    flex-direction: column !important;
+    gap: 0.6rem !important;
+  }
+
+  .search-glass-field,
+  .select-glass-field {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .responsive-table-scroll {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+
+  .glass-table {
+    min-width: 720px !important;
+  }
+
+  .drawer-panel,
+  .modal-glass-container {
+    max-width: 95vw !important;
+    width: 100% !important;
+    margin: 0.5rem auto !important;
+    padding: 1.5rem 1.15rem !important;
+    border-radius: 1.25rem !important;
+    max-height: 90vh !important;
+  }
+
+  .drawer-title {
+    font-size: 1.3rem !important;
+  }
+
+  .form-grid-two {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+  }
+
+  .campaign-create-form {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  .campaign-create-form button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .details-head-split {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1rem !important;
+  }
+
+  .details-head-split > div:first-child {
+    max-width: 100% !important;
+  }
+
+  .details-metric-chip {
+    width: 100% !important;
+    text-align: left !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0.85rem 1.15rem !important;
+  }
+
+  .metric-huge {
+    font-size: 2rem !important;
+  }
+
+  .details-grid-cards {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  .custom-dropdown-box {
+    width: 100% !important;
+  }
+
+  .about-hero-box {
+    padding: 2rem 1rem !important;
+  }
+
+  .about-team-heading {
+    font-size: 1.95rem !important;
+  }
+
+  .members-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+  }
+
+  .toast-bubble {
+    left: 1rem !important;
+    right: 1rem !important;
+    bottom: 1.25rem !important;
+    text-align: center !important;
+  }
+}
+
+/* Small Phones */
+@media (max-width: 420px) {
+  .header-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .header-actions #exportCsvBtn,
+  .header-actions #importCsvBtn,
+  .header-actions #openDrawerBtn {
+    grid-column: span 1 !important;
+  }
+
+  .header-title {
+    font-size: 1.6rem !important;
+  }
+
+  .chart-toggle-switch {
+    display: none;
+  }
+
+  .spotlight-qr-row {
+    flex-direction: column !important;
+    text-align: center !important;
+  }
 }
 
 /* Dropdown */
