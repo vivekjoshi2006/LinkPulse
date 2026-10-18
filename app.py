@@ -684,7 +684,7 @@ def analytics_summary():
     user = get_current_user()
     stats = query_one("""
         SELECT COUNT(*) AS total_links,
-               SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_links,
+               SUM(CASE WHEN status = 'active' AND (expires_at IS NULL OR expires_at >= CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) AS active_links,
                COALESCE(SUM(click_count), 0) AS total_clicks
         FROM links
         WHERE user_id = %s
