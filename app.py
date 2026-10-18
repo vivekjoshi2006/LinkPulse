@@ -1,5 +1,3 @@
-"""LinkPulse - Main Application Server & API Engine."""
-
 import csv
 import io
 import os
@@ -21,21 +19,39 @@ app = Flask(__name__, static_folder=None)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
 
-# 1. Initialize Tables on Startup
+# 1. Initialize Tables on Startup for Gunicorn
 initialize_database(Config)
 
-# 2. Auto-Migrate DB on Startup (Adds 'country' column if missing)
+# 2. Auto-Migrate DB on Startup
 def auto_migrate():
     try:
         if Config.DB_ENGINE == "mysql":
             return
         conn = sqlite3.connect(Config.SQLITE_PATH)
         cur = conn.cursor()
+        
+        # Ensure users table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NULL,
+                country TEXT DEFAULT 'India',
+                age INTEGER NULL,
+                role TEXT DEFAULT 'User',
+                auth_provider TEXT DEFAULT 'manual',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # Ensure country column in click_events exists
         cur.execute("PRAGMA table_info(click_events);")
         cols = [r[1] for r in cur.fetchall()]
         if cols and "country" not in cols:
             cur.execute("ALTER TABLE click_events ADD COLUMN country TEXT DEFAULT 'Local Network';")
-            conn.commit()
+
+        conn.commit()
         conn.close()
     except Exception as e:
         print("Auto-migration notice:", e)
@@ -64,6 +80,7 @@ def iso(val):
         return val.isoformat(timespec="seconds")
     return val
 
+# Detects live domain or falls back to localhost
 def short_url_for(code):
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
     if not base or "127.0.0.1" in base or "localhost" in base:
@@ -72,7 +89,7 @@ def short_url_for(code):
             host = request.host
             base = f"{proto}://{host}"
         except Exception:
-            base = "http://127.0.0.1:5000"
+            base = "http://localhost:5000"
     return f"{base}/{code}"
 
 def row_to_link(row):
@@ -122,7 +139,7 @@ def detect_country(req):
         return "India (Local Dev)" if "in" in lang else "Local Network"
     return "Global / Direct"
 
-# ----------------- Error Handlers (With Real Tracebacks) -----------------
+# ----------------- Error Handlers -----------------
 
 @app.errorhandler(ApiError)
 def handle_api_error(e):
@@ -137,11 +154,11 @@ def handle_404(e):
 @app.errorhandler(Exception)
 def handle_all_exceptions(e):
     error_trace = traceback.format_exc()
-    print("\n🚨 UNHANDLED 500 CRASH:\n", error_trace)
+    print("\n🚨 UNHANDLED 500 ERROR:\n", error_trace)
     if isinstance(e, ApiError):
         return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
     if request.path.startswith("/api/"):
-        return jsonify({"error": {"code": "internal_error", "message": str(e), "trace": error_trace}}), 500
+        return jsonify({"error": {"code": "internal_error", "message": str(e)}}), 500
     return Response(
         f"""<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;">
         <h1 style="color:#dc2626;">500 Internal Server Error</h1>
@@ -157,36 +174,146 @@ def handle_all_exceptions(e):
 ADMIN_USER = os.getenv("ADMIN_USER", "CWC")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET"])
 def serve_login():
-    if request.method == "POST":
-        data = request.get_json(silent=True) or request.form
-        username = (data.get("username") or "").strip()
-        password = (data.get("password") or "").strip()
-        if username == ADMIN_USER and password == ADMIN_PASSWORD:
-            session["authenticated"] = True
-            session["admin_name"] = username
-            if request.is_json:
-                return jsonify({"data": {"success": True, "message": "Login successful"}})
-            return redirect("/")
-        if request.is_json:
-            raise ApiError(401, "unauthorized", "Invalid username or password.")
-        return redirect("/login")
-
     if session.get("authenticated"):
         return redirect("/")
     return send_from_directory(FRONTEND_DIR, "login.html")
 
+# 1. LOGIN
 @app.post("/api/login")
 def api_login():
     data = json_body()
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
+
+    # A. Check Default Admin
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         session["authenticated"] = True
-        session["admin_name"] = username
-        return jsonify({"data": {"success": True, "message": "Login successful"}})
+        session["user_id"] = 1
+        session["admin_name"] = "Admin"
+        session["user_role"] = "Admin"
+        session["user_country"] = "India"
+        return jsonify({
+            "data": {
+                "success": True,
+                "name": "Admin",
+                "role": "Admin",
+                "country": "India"
+            }
+        })
+
+    # B. Check Registered Database Users
+    user = query_one("SELECT * FROM users WHERE username = %s", (username,))
+    if user and user.get("password_hash") and check_password_hash(user["password_hash"], password):
+        session["authenticated"] = True
+        session["user_id"] = user["id"]
+        session["admin_name"] = user["name"]
+        session["user_role"] = user["role"]
+        session["user_country"] = user["country"]
+        return jsonify({
+            "data": {
+                "success": True,
+                "name": user["name"],
+                "role": user["role"],
+                "country": user["country"]
+            }
+        })
+
     raise ApiError(401, "unauthorized", "Invalid username or password.")
+
+# 2. MANUAL SIGN UP
+@app.post("/api/register")
+def api_register():
+    data = json_body()
+    name = (data.get("name") or "").strip()
+    username = (data.get("username") or "").strip()
+    country = (data.get("country") or "India").strip()
+    age = data.get("age")
+    role = (data.get("role") or "User").strip()
+    password = (data.get("password") or "").strip()
+
+    if not name or not username or not password:
+        raise ApiError(400, "bad_request", "Name, username, and password are required.")
+    if len(password) < 3:
+        raise ApiError(400, "bad_request", "Password must be at least 3 characters.")
+
+    if query_one("SELECT id FROM users WHERE username = %s", (username,)):
+        raise ApiError(409, "conflict", "Username is already registered. Please sign in.")
+
+    pwd_hash = generate_password_hash(password)
+    try:
+        age_int = int(age) if age else None
+    except ValueError:
+        age_int = None
+
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("""
+        INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
+        VALUES (%s, %s, %s, %s, %s, %s, 'manual')
+    """, (name, username, pwd_hash, country, age_int, role))
+    user_id = cur.lastrowid
+    db.commit()
+
+    # Auto-login after sign up
+    session["authenticated"] = True
+    session["user_id"] = user_id
+    session["admin_name"] = name
+    session["user_role"] = role
+    session["user_country"] = country
+
+    return jsonify({
+        "data": {
+            "success": True,
+            "name": name,
+            "role": role,
+            "country": country
+        }
+    }), 201
+
+# 3. GOOGLE SIGN UP / LOGIN
+@app.post("/api/auth/google")
+def api_google_auth():
+    data = json_body()
+    email = (data.get("email") or "").strip()
+    name = (data.get("name") or "Google User").strip()
+    
+    if not email:
+        raise ApiError(400, "bad_request", "Valid Google account email required.")
+
+    user = query_one("SELECT * FROM users WHERE username = %s", (email,))
+    if not user:
+        db = get_db()
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
+            VALUES (%s, %s, NULL, 'India', 25, 'Analyst', 'google')
+        """, (name, email))
+        user_id = cur.lastrowid
+        db.commit()
+        role = "Analyst"
+        country = "India"
+    else:
+        user_id = user["id"]
+        name = user["name"]
+        role = user["role"]
+        country = user["country"]
+
+    session["authenticated"] = True
+    session["user_id"] = user_id
+    session["admin_name"] = name
+    session["user_role"] = role
+    session["user_country"] = country
+
+    return jsonify({
+        "data": {
+            "success": True,
+            "name": name,
+            "role": role,
+            "country": country
+        }
+    })
 
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
@@ -271,12 +398,14 @@ def create_link():
         except (ValueError, TypeError):
             campaign_id = None
 
+    user_id = session.get("user_id")
+
     db = get_db()
     cur = db.cursor()
     cur.execute("""
-        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id))
+        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user_id))
     link_id = cur.lastrowid
     db.commit()
 
@@ -579,7 +708,7 @@ def redirect_engine(short_code):
         if cur.rowcount == 0 and row["click_limit"] is not None:
             return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
-    # Safe Insert (Works even if country column was missing)
+    # Safe Insert
     try:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
