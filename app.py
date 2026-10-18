@@ -19,7 +19,7 @@ app = Flask(__name__, static_folder=None)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = Config.CSV_MAX_BYTES + 1024
 
-# 1. Initialize Tables on Startup for Gunicorn
+# 1. Initialize Tables on Startup
 initialize_database(Config)
 
 # 2. Auto-Migrate DB on Startup
@@ -29,8 +29,8 @@ def auto_migrate():
             return
         conn = sqlite3.connect(Config.SQLITE_PATH)
         cur = conn.cursor()
-        
-        # Ensure users table exists
+
+        # A. Ensure users table exists
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,10 +45,22 @@ def auto_migrate():
             );
         """)
 
-        # Ensure country column in click_events exists
+        # B. Default Admin exists (Prevents FOREIGN KEY failure)
+        cur.execute("""
+            INSERT OR IGNORE INTO users (id, name, username, role, country)
+            VALUES (1, 'Admin', 'CWC', 'Admin', 'India');
+        """)
+
+        # C. Ensure links table has user_id column
+        cur.execute("PRAGMA table_info(links);")
+        link_cols = [r[1] for r in cur.fetchall()]
+        if link_cols and "user_id" not in link_cols:
+            cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
+
+        # D. Ensure click_events table has country column
         cur.execute("PRAGMA table_info(click_events);")
-        cols = [r[1] for r in cur.fetchall()]
-        if cols and "country" not in cols:
+        click_cols = [r[1] for r in cur.fetchall()]
+        if click_cols and "country" not in click_cols:
             cur.execute("ALTER TABLE click_events ADD COLUMN country TEXT DEFAULT 'Local Network';")
 
         conn.commit()
@@ -80,7 +92,6 @@ def iso(val):
         return val.isoformat(timespec="seconds")
     return val
 
-# Detects live domain or falls back to localhost
 def short_url_for(code):
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
     if not base or "127.0.0.1" in base or "localhost" in base:
@@ -154,7 +165,7 @@ def handle_404(e):
 @app.errorhandler(Exception)
 def handle_all_exceptions(e):
     error_trace = traceback.format_exc()
-    print("\n🚨 UNHANDLED 500 ERROR:\n", error_trace)
+    print("\n🚨 UNHANDLED ERROR:\n", error_trace)
     if isinstance(e, ApiError):
         return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
     if request.path.startswith("/api/"):
@@ -180,14 +191,12 @@ def serve_login():
         return redirect("/")
     return send_from_directory(FRONTEND_DIR, "login.html")
 
-# 1. LOGIN
 @app.post("/api/login")
 def api_login():
     data = json_body()
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
-    # A. Check Default Admin
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         session["authenticated"] = True
         session["user_id"] = 1
@@ -203,7 +212,6 @@ def api_login():
             }
         })
 
-    # B. Check Registered Database Users
     user = query_one("SELECT * FROM users WHERE username = %s", (username,))
     if user and user.get("password_hash") and check_password_hash(user["password_hash"], password):
         session["authenticated"] = True
@@ -222,7 +230,6 @@ def api_login():
 
     raise ApiError(401, "unauthorized", "Invalid username or password.")
 
-# 2. MANUAL SIGN UP
 @app.post("/api/register")
 def api_register():
     data = json_body()
@@ -256,7 +263,6 @@ def api_register():
     user_id = cur.lastrowid
     db.commit()
 
-    # Auto-login after sign up
     session["authenticated"] = True
     session["user_id"] = user_id
     session["admin_name"] = name
@@ -272,7 +278,6 @@ def api_register():
         }
     }), 201
 
-# 3. GOOGLE SIGN UP / LOGIN
 @app.post("/api/auth/google")
 def api_google_auth():
     data = json_body()
@@ -391,21 +396,40 @@ def create_link():
     password = data.get("password")
     pwd_hash = generate_password_hash(password.strip()) if password and len(password.strip()) >= 3 else None
 
+    # Foreign Key Safe: If campaign exists
     campaign_id = data.get("campaign_id") or None
     if campaign_id:
         try:
             campaign_id = int(campaign_id)
+            if not query_one("SELECT id FROM campaigns WHERE id = %s", (campaign_id,)):
+                campaign_id = None
         except (ValueError, TypeError):
             campaign_id = None
 
+    # Foreign Key Safe: If user exists
     user_id = session.get("user_id")
+    if user_id:
+        try:
+            user_id = int(user_id)
+            if not query_one("SELECT id FROM users WHERE id = %s", (user_id,)):
+                user_id = None
+        except (ValueError, TypeError):
+            user_id = None
 
     db = get_db()
     cur = db.cursor()
-    cur.execute("""
-        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user_id))
+
+    try:
+        cur.execute("""
+            INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user_id))
+    except Exception:
+        cur.execute("""
+            INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id))
+
     link_id = cur.lastrowid
     db.commit()
 
@@ -688,7 +712,7 @@ def redirect_engine(short_code):
 </body>
 </html>""", 200
 
-    # 2. Telemetry and Real Bot Classification
+    # 2. Telemetry and Bot Classification
     ua = request.headers.get("User-Agent") or ""
     device, browser, is_bot = classify_user_agent(ua)
     ref = sanitize_referrer(request.headers.get("Referer"))
@@ -698,7 +722,6 @@ def redirect_engine(short_code):
     db = get_db()
     cur = db.cursor()
 
-    # Only real human visits increment the click quota
     if not is_bot:
         cur.execute("""
             UPDATE links SET click_count = click_count + 1
@@ -708,7 +731,6 @@ def redirect_engine(short_code):
         if cur.rowcount == 0 and row["click_limit"] is not None:
             return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
-    # Safe Insert
     try:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
