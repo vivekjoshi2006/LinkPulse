@@ -183,7 +183,8 @@ def _create_sqlite_tables(conn):
         device_type TEXT NOT NULL DEFAULT 'desktop',
         browser TEXT NULL,
         ip_hash TEXT NULL,
-        is_bot INTEGER NOT NULL DEFAULT 0
+        is_bot INTEGER NOT NULL DEFAULT 0,
+        country TEXT DEFAULT 'Local Network'
     );
 
     CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code);
