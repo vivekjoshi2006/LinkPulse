@@ -58,14 +58,14 @@ def auto_migrate():
             admin_row = cur.fetchone()
         admin_id = admin_row[0] if admin_row else 1
 
-        # C. Ensure links table has user_id column and backfill orphan links
+        # C. Ensure links table has user_id column
         cur.execute("PRAGMA table_info(links);")
         link_cols = [r[1] for r in cur.fetchall()]
         if link_cols and "user_id" not in link_cols:
             cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
         cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
 
-        # D. Ensure campaigns table has user_id column and backfill
+        # D. Campaigns table has user_id column and backfill
         cur.execute("PRAGMA table_info(campaigns);")
         camp_cols = [r[1] for r in cur.fetchall()]
         if camp_cols and "user_id" not in camp_cols:
@@ -76,7 +76,7 @@ def auto_migrate():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
 
-        # F. Ensure click_events table has country column
+        # F. click_events table has country column
         cur.execute("PRAGMA table_info(click_events);")
         click_cols = [r[1] for r in cur.fetchall()]
         if click_cols and "country" not in click_cols:
@@ -802,7 +802,6 @@ def redirect_engine(short_code):
     if row["status"] != "active":
         return Response("<h1>Link Expired or Inactive</h1>", status=410, mimetype="text/html")
 
-    # Enforce Click Cap Before Evaluating Password/Redirect
     if row["click_limit"] is not None and row["click_count"] >= row["click_limit"]:
         return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
@@ -961,7 +960,6 @@ def import_csv():
             dest = validate_destination(row.get("Destination") or row.get("url") or "")
             title = (row.get("Title") or title_from_url(dest)).strip()
             
-            # Collision-safe code generator
             code = generate_short_code()
             for _ in range(5):
                 if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
