@@ -14,7 +14,7 @@
 <body>
   <div class="app-layout">
 
-    <!-- ACCOUNT DASHBOARD -->
+    <!-- Account Dashboard -->
     <div class="drawer-backdrop" id="accountModal">
       <div class="drawer-panel" style="max-width: 520px;">
         <div class="drawer-header">
@@ -43,7 +43,7 @@
             </div>
             <div class="form-field-group">
               <label for="accEmail">Admin Email</label>
-              <input type="email" id="accEmail" class="glass-input-styled" required />
+              <input type="email" id="accEmail" class="glass-input-styled" readonly style="background: #f1f5f9; color: #64748b;" />
             </div>
           </div>
 
@@ -61,7 +61,7 @@
                 <option value="Singapore">🇸🇬 Singapore</option>
               </select>
             </div>
-           <div class="form-field-group">
+            <div class="form-field-group">
               <label for="accRole">Role / Title</label>
               <input type="text" id="accRole" class="glass-input-styled" placeholder="e.g. Admin" value="Admin" required />
             </div>
@@ -208,9 +208,9 @@
         </div>
       </header>
 
-      <!-- TAB 1: OVERVIEW -->
+      <!-- TAB 1: Overview -->
       <section class="tab-pane active" id="tab-overview">
-        <!-- Stats Ribbon -->
+        <!-- Stats -->
         <div class="stats-ribbon">
           <div class="stat-card tint-azure">
             <div class="stat-header"><span class="stat-title">Total Redirects</span></div>
@@ -321,7 +321,7 @@
           </div>
         </div>
 
-        <!-- 3-Column Panels -->
+        <!-- Column Panels -->
         <div class="breakdown-grid">
           <div class="glass-container breakdown-card">
             <h4 class="breakdown-title">Top Traffic Referrers</h4>
@@ -343,7 +343,7 @@
           </div>
         </div>
 
-        <!-- TABLE ON OVERVIEW TAB -->
+        <!-- Table on Overview Tab -->
         <div class="glass-container table-wrapper-box">
           <div class="table-top-bar">
             <div>
@@ -383,7 +383,7 @@
         </div>
       </section>
 
-      <!-- TAB 2: LINK ANALYTICS -->
+      <!-- Tab 2: Link Analytics -->
       <section class="tab-pane" id="tab-details">
         <div class="glass-container details-hero" style="margin-bottom: 1.5rem;">
           <div class="details-head-split">
@@ -447,7 +447,7 @@
         </div>
       </section>
 
-      <!-- TAB 3: CAMPAIGNS -->
+      <!-- Tab 3: Campaigns -->
       <section class="tab-pane" id="tab-campaigns">
         <div class="glass-container campaign-box">
           <div class="box-head-flex">
@@ -470,7 +470,7 @@
         </div>
       </section>
 
-      <!-- TAB 4: ABOUT US -->
+      <!-- Tab 4: Anout Us -->
       <section class="tab-pane" id="tab-about">
         <div class="glass-container about-hero-box">
           <div class="hackathon-tag-pill">
@@ -478,7 +478,7 @@
             <span>Official Hackathon Innovation Project</span>
           </div>
 
-          <!-- GROUP LOGO -->
+          <!-- Group Logo -->
           <div style="width: 100%; margin: 1.25rem 0; overflow: hidden; border-radius: 20px;">
             <img 
               src="/Group_Logo.png" 
@@ -537,7 +537,7 @@
     </main>
   </div>
 
-  <!-- CENTERED MODAL FOR CREATE & EDIT -->
+  <!-- Centered Modal For Edit -->
   <div class="drawer-backdrop" id="linkDrawerBackdrop">
     <div class="drawer-panel" id="linkDrawer">
       <div class="drawer-header">
@@ -605,7 +605,7 @@
     </div>
   </div>
 
-  <!-- CAMPAIGN MANAGER MODAL -->
+  <!-- Campaign -->
   <div class="drawer-backdrop" id="campaignDetailsModal">
     <div class="drawer-panel" style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
       
@@ -752,7 +752,7 @@
     });
 
     function loadAdminProfile() {
-      const name = localStorage.getItem('lp_admin_name') || 'CWC';
+      const name = localStorage.getItem('lp_admin_name') || 'Admin';
       const role = localStorage.getItem('lp_admin_role') || 'Admin';
       const email = localStorage.getItem('lp_admin_email') || 'admin@linkpulse.io';
       const country = localStorage.getItem('lp_admin_country') || 'India';
@@ -773,26 +773,49 @@
     }
     loadAdminProfile();
 
+    async function syncAdminProfile() {
+      try {
+        const acc = await api('/api/account');
+        if (acc) {
+          if (acc.name) localStorage.setItem('lp_admin_name', acc.name);
+          if (acc.role) localStorage.setItem('lp_admin_role', acc.role);
+          if (acc.country) localStorage.setItem('lp_admin_country', acc.country);
+          if (acc.email) localStorage.setItem('lp_admin_email', acc.email);
+          loadAdminProfile();
+        }
+      } catch (err) {
+        // Keep localStorage cache if endpoint is offline
+      }
+    }
+    syncAdminProfile();
+
     $('adminUserChip').onclick = () => {
       loadAdminProfile();
       $('accountModal').classList.add('active');
     };
 
-    $('accountSettingsForm').onsubmit = e => {
+    $('accountSettingsForm').onsubmit = async e => {
       e.preventDefault();
-      const name = $('accName').value.trim() || 'Admin User';
+      const name = $('accName').value.trim() || 'Admin';
       const role = $('accRole').value.trim() || 'Admin';
-      const email = $('accEmail').value.trim() || 'admin@linkpulse.io';
       const country = $('accCountry').value;
 
-      localStorage.setItem('lp_admin_name', name);
-      localStorage.setItem('lp_admin_role', role);
-      localStorage.setItem('lp_admin_email', email);
-      localStorage.setItem('lp_admin_country', country);
+      try {
+        const updated = await api('/api/account', {
+          method: 'PATCH',
+          body: { name, role, country }
+        });
 
-      loadAdminProfile();
-      $('accountModal').classList.remove('active');
-      toast('Account details updated!');
+        localStorage.setItem('lp_admin_name', updated.name || name);
+        localStorage.setItem('lp_admin_role', updated.role || role);
+        localStorage.setItem('lp_admin_country', updated.country || country);
+
+        loadAdminProfile();
+        $('accountModal').classList.remove('active');
+        toast('Account details saved to server!');
+      } catch (err) {
+        toast(err.message);
+      }
     };
 
     function sanitizeDailySeries(raw) {
@@ -808,7 +831,13 @@
       for (let i = 0; i < days; i++) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const iso = d.toISOString().slice(0, 10);
+        
+        // Use local calendar
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${year}-${month}-${day}`;
+
         const dayLabel = (i === 0) ? 'Today' : (i === 1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' }));
         result.push({
           date: iso,
@@ -926,6 +955,9 @@
         $('inpAlias').disabled = true;
         $('inpLimit').value = editData.click_limit || '';
         $('inpExpiry').value = editData.expires_at ? String(editData.expires_at).slice(0, 10) : '';
+        $('inpCampaign').value = editData.campaign_id || '';
+        $('inpPassword').value = '';
+        $('inpPassword').placeholder = editData.has_password ? 'Leave empty to keep current password' : 'Leave empty for public';
       } else {
         $('drawerModeTag').textContent = 'Smart Builder';
         $('drawerTitle').textContent = 'Create Short Link';
@@ -933,6 +965,8 @@
         $('editLinkId').value = '';
         $('createLinkForm').reset();
         $('inpAlias').disabled = false;
+        $('inpPassword').placeholder = 'Leave empty for public';
+        $('inpCampaign').value = '';
       }
       drawerBackdrop.classList.add('active');
     }
@@ -969,18 +1003,26 @@
 
       try {
         if (editId) {
+          const updatePayload = {
+            title: $('inpTitle').value.trim() || undefined,
+            original_url: destination,
+            click_limit: $('inpLimit').value ? Number($('inpLimit').value) : null,
+            expires_at: $('inpExpiry').value || null,
+            campaign_id: $('inpCampaign').value ? Number($('inpCampaign').value) : null
+          };
+          if ($('inpPassword').value.trim() !== '') {
+            updatePayload.password = $('inpPassword').value.trim();
+          }
+
           await api(`/api/links/${editId}`, {
-            method: 'PATCH', body: {
-              title: $('inpTitle').value.trim() || undefined,
-              original_url: destination,
-              click_limit: $('inpLimit').value ? Number($('inpLimit').value) : null,
-              expires_at: $('inpExpiry').value || null
-            }
+            method: 'PATCH',
+            body: updatePayload
           });
           toast('Link updated successfully!');
         } else {
           await api('/api/links', {
-            method: 'POST', body: {
+            method: 'POST',
+            body: {
               title: $('inpTitle').value.trim() || undefined,
               original_url: destination,
               custom_alias: $('inpAlias').value.trim() || undefined,
@@ -997,7 +1039,9 @@
       } catch (err) {
         errBox.textContent = err.message;
         errBox.style.display = 'block';
-      } finally { btn.disabled = false; }
+      } finally {
+        btn.disabled = false;
+      }
     };
 
     async function refreshDashboard() {
@@ -1038,16 +1082,27 @@
             <div class="progress-bar-bg"><div class="progress-fill grad-emerald" style="width:${Math.min(100, Math.max(0, Number(c.pct) || 0))}%"></div></div>
           </div>`).join('') : '<p class="empty-placeholder">No geographic data logged yet.</p>';
 
-      } catch (err) { console.error('Dashboard error:', err); }
+      } catch (err) {
+        console.error('Dashboard error:', err);
+      }
     }
 
     function inspectLink(link) {
-      if (!link) return;
+      if (!link) {
+        $('detTitle').textContent = 'Select a link from the table below';
+        $('detUrl').textContent = 'Click anywhere on a row to inspect its telemetry';
+        $('detClicks').textContent = '0';
+        $('detSlug').textContent = '--';
+        $('detStatus').textContent = '--';
+        $('detPassword').textContent = 'None';
+        $('detCreated').textContent = '--';
+        return;
+      }
       selectedLinkId = link.id;
       $('detTitle').textContent = link.title || 'Untitled Link';
       $('detUrl').textContent = link.original_url;
       $('detClicks').textContent = Number(link.click_count || 0).toLocaleString();
-      $('detSlug').textContent = link.short_code;
+      $('detSlug').textContent = link.custom_alias || link.short_code;
       $('detStatus').textContent = (link.status || 'active').toUpperCase();
       $('detPassword').textContent = link.has_password ? 'Protected' : 'None';
       $('detCreated').textContent = String(link.created_at || '').slice(0, 10);
@@ -1060,7 +1115,15 @@
         renderLinks(filteredLinks());
         if (cachedLinks.length > 0) {
           updateSpotlight(cachedLinks[0]);
-          if (!selectedLinkId) inspectLink(cachedLinks[0]);
+          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
+            inspectLink(cachedLinks[0]);
+          }
+        } else {
+          inspectLink(null);
+          $('spotlightTitle').textContent = 'Select or create a link';
+          $('spotlightDest').textContent = 'https://example.com';
+          $('spotlightShortUrl').value = 'https://linkpulse.io/latest';
+          $('spotlightQrBox').replaceChildren();
         }
       } catch (err) {
         console.error('Failed to load links:', err);
@@ -1072,7 +1135,7 @@
       const q = $('searchInput').value.trim().toLowerCase();
       const status = $('statusFilter').value;
       return cachedLinks.filter(l => {
-        const matchesQ = [l.title, l.short_code, l.original_url, l.campaign_name || ''].some(v => String(v).toLowerCase().includes(q));
+        const matchesQ = [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || ''].some(v => String(v).toLowerCase().includes(q));
         const matchesStatus = (status === 'all') || (status === l.status);
         return matchesQ && matchesStatus;
       });
@@ -1081,7 +1144,7 @@
     function renderLinks(links) {
       // 1. Overview Table
       $('linksTbody').innerHTML = links.map(l => {
-        const code = escapeHTML(l.short_code);
+        const code = escapeHTML(l.custom_alias || l.short_code);
         const shortUrl = escapeHTML(l.short_url);
         const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
         const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
@@ -1113,7 +1176,7 @@
       const elAnalytics = $('linksTbodyAnalytics');
       if (elAnalytics) {
         elAnalytics.innerHTML = links.map(l => {
-          const code = escapeHTML(l.short_code);
+          const code = escapeHTML(l.custom_alias || l.short_code);
           const shortUrl = escapeHTML(l.short_url);
           const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
           const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
@@ -1140,7 +1203,7 @@
       $('spotlightDest').textContent = link.original_url || '';
       $('spotlightShortUrl').value = link.short_url || '';
       $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
-      $('spotlightDownloadQr').onclick = () => downloadQr(link.short_code, link.short_url);
+      $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code, '#spotlightQrBox');
       const box = $('spotlightQrBox');
       box.replaceChildren();
       if (typeof QRCode !== 'undefined') new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
@@ -1150,7 +1213,9 @@
       try {
         await navigator.clipboard.writeText(url);
         toast('Link copied!');
-      } catch { toast(`Copy: ${url}`); }
+      } catch {
+        toast(`Copy: ${url}`);
+      }
     }
 
     function openQr(url, code) {
@@ -1159,14 +1224,20 @@
       const box = $('qrCanvasBox');
       box.replaceChildren();
       if (typeof QRCode !== 'undefined') new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
-      $('downloadQrBtn').onclick = () => downloadQr(code, url);
+      $('downloadQrBtn').onclick = () => downloadQr(code, '#qrCanvasBox');
     }
 
-    function downloadQr(code, url) {
-      const canvas = document.querySelector('#qrCanvasBox canvas') || document.querySelector('#spotlightQrBox canvas');
+    function downloadQr(code, containerSelector = '#qrCanvasBox') {
+      const container = document.querySelector(containerSelector);
+      const canvas = container ? container.querySelector('canvas') : null;
       if (canvas) {
-        const a = document.createElement('a'); a.download = `qr-${code || 'shortlink'}.png`;
-        a.href = canvas.toDataURL('image/png'); a.click(); toast('QR PNG downloaded!');
+        const a = document.createElement('a');
+        a.download = `qr-${code || 'shortlink'}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+        toast('QR PNG downloaded!');
+      } else {
+        toast('Unable to locate QR canvas.');
       }
     }
 
@@ -1178,11 +1249,16 @@
         $('quickUrlInput').value = '';
         toast('Short link created!');
         await Promise.all([loadLinks(), refreshDashboard()]);
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+      }
     };
 
     $('quickUrlInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); $('quickShortenBtn').click(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('quickShortenBtn').click();
+      }
     });
 
     document.addEventListener('click', e => {
@@ -1204,12 +1280,16 @@
       const link = cachedLinks.find(l => Number(l.id) === Number(btn.dataset.id));
       if (!link) return;
 
-      if (btn.dataset.action === 'qr') return openQr(link.short_url, link.short_code);
+      if (btn.dataset.action === 'qr') return openQr(link.short_url, link.custom_alias || link.short_code);
       if (btn.dataset.action === 'edit') return openDrawer(link);
       if (btn.dataset.action === 'test-click') {
-        await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
-        toast(`⚡ Simulated 1 click! Watch the graph update.`);
-        return Promise.all([loadLinks(), refreshDashboard()]);
+        try {
+          await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
+          toast(`⚡ Simulated 1 click! Watch the graph update.`);
+          return Promise.all([loadLinks(), refreshDashboard()]);
+        } catch (err) {
+          toast(err.message);
+        }
       }
       if (btn.dataset.action === 'toggle') {
         const next = link.status === 'active' ? 'disabled' : 'active';
@@ -1218,7 +1298,7 @@
         return Promise.all([loadLinks(), refreshDashboard()]);
       }
       if (btn.dataset.action === 'delete') {
-        if (!confirm('Delete link?')) return;
+        if (!confirm('Are you sure you want to delete this short link?')) return;
         await api(`/api/links/${link.id}`, { method: 'DELETE' });
         toast('Link deleted');
         return Promise.all([loadLinks(), refreshDashboard()]);
@@ -1239,7 +1319,7 @@
         const unassigned = all_links.filter(l => l.campaign_id !== campaign.id);
         
         $('selectLinkToAdd').innerHTML = unassigned.map(l => 
-          `<option value="${l.id}">${escapeHTML(l.title || l.short_code)}</option>`
+          `<option value="${l.id}">${escapeHTML(l.title || l.custom_alias || l.short_code)}</option>`
         ).join('') || '<option value="">All links assigned</option>';
 
         const menu = $('customDropdownMenu');
@@ -1247,16 +1327,16 @@
 
         if (unassigned.length > 0) {
           $('selectLinkToAdd').value = unassigned[0].id;
-          $('customDropdownLabel').textContent = unassigned[0].title || unassigned[0].short_code;
+          $('customDropdownLabel').textContent = unassigned[0].title || unassigned[0].custom_alias || unassigned[0].short_code;
 
           unassigned.forEach((link, idx) => {
             const item = document.createElement('div');
             item.className = `custom-dropdown-item ${idx === 0 ? 'active' : ''}`;
-            item.textContent = link.title || link.short_code;
+            item.textContent = link.title || link.custom_alias || link.short_code;
             item.onclick = (e) => {
               e.stopPropagation();
               $('selectLinkToAdd').value = link.id;
-              $('customDropdownLabel').textContent = link.title || link.short_code;
+              $('customDropdownLabel').textContent = link.title || link.custom_alias || link.short_code;
               document.querySelectorAll('.custom-dropdown-item').forEach(el => el.classList.remove('active'));
               item.classList.add('active');
               $('customLinkDropdown').classList.remove('open');
@@ -1264,14 +1344,15 @@
             menu.appendChild(item);
           });
         } else {
+          $('selectLinkToAdd').value = '';
           $('customDropdownLabel').textContent = 'All links assigned';
-          menu.innerHTML = '<div style="padding:0.6rem;font-size:0.8rem;color:#94a3b8;text-align:center;">No links available</div>';
+          menu.innerHTML = '<div style="padding:0.6rem;font-size:0.8rem;color:#94a3b8;text-align:center;">No available links</div>';
         }
 
         $('campAssignedLinksList').innerHTML = assigned_links.length ? assigned_links.map(l => `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.95rem; background: rgba(248, 250, 252, 0.95); border: 1.5px solid #e2e8f0; border-radius: 12px;">
             <div style="min-width: 0; max-width: 80%;">
-              <strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.short_code)}</strong>
+              <strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.custom_alias || l.short_code)}</strong>
               <span style="display: block; font-size: 0.78rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.original_url)} · ${l.click_count || 0} clicks</span>
             </div>
             <button class="action-icon-btn btn-danger-action" onclick="removeLinkFromCampaign(${campaign.id}, ${l.id})" title="Remove link from campaign" style="width:28px;height:28px;font-size:0.8rem;">✕</button>
@@ -1279,8 +1360,51 @@
         `).join('') : '<p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>';
 
         $('campaignDetailsModal').classList.add('active');
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+      }
     }
+
+    // Assign Link Button
+    $('btnAddLinkToCamp').onclick = async () => {
+      const campId = Number($('editCampId').value);
+      const linkId = Number($('selectLinkToAdd').value);
+      if (!campId || !linkId) return toast('Please select an available link to add.');
+
+      try {
+        await api(`/api/campaigns/${campId}/assign-link`, {
+          method: 'POST',
+          body: { link_id: linkId, action: 'add' }
+        });
+        toast('Link added to campaign!');
+        await openCampaignModal(campId);
+        await Promise.all([loadLinks(), loadCampaigns()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+
+    // Edit Campaign Form Submission
+    $('editCampForm').onsubmit = async e => {
+      e.preventDefault();
+      const id = Number($('editCampId').value);
+      const name = $('editCampName').value.trim();
+      const tag = $('editCampTag').value.trim();
+
+      if (!id || !name) return toast('Campaign name is required.');
+
+      try {
+        await api(`/api/campaigns/${id}`, {
+          method: 'PATCH',
+          body: { name, tag }
+        });
+        toast('Campaign details updated!');
+        $('campaignDetailsModal').classList.remove('active');
+        await Promise.all([loadCampaigns(), loadLinks()]);
+      } catch (err) {
+        toast(err.message);
+      }
+    };
 
     $('customDropdownBtn').onclick = (e) => {
       e.stopPropagation();
@@ -1302,7 +1426,9 @@
         toast('Link removed from campaign.');
         openCampaignModal(campId);
         await Promise.all([loadLinks(), loadCampaigns()]);
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+      }
     }
 
     async function loadCampaigns() {
@@ -1326,7 +1452,9 @@
           </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
 
         $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' + cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
-      } catch (err) { console.error('Campaigns error:', err); }
+      } catch (err) {
+        console.error('Campaigns error:', err);
+      }
     }
 
     $('campaignForm').onsubmit = async e => {
@@ -1336,7 +1464,9 @@
         $('campaignForm').reset();
         toast('Campaign created.');
         await Promise.all([loadCampaigns(), refreshDashboard()]);
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+      }
     };
 
     $('campaignRows').addEventListener('click', async e => {
@@ -1350,7 +1480,7 @@
       const delBtn = e.target.closest('[data-camp-del]');
       if (delBtn) {
         const id = Number(delBtn.dataset.campDel);
-        if (!confirm('Delete campaign? Assigned links will remain.')) return;
+        if (!confirm('Delete campaign? Assigned links will remain in your workspace.')) return;
         await api(`/api/campaigns/${id}`, { method: 'DELETE' });
         toast('Campaign removed.');
         await Promise.all([loadCampaigns(), loadLinks(), refreshDashboard()]);
@@ -1372,8 +1502,11 @@
         const res = await api('/api/links/import', { method: 'POST', body: fd });
         toast(`Imported ${res.imported} links.`);
         await Promise.all([loadLinks(), refreshDashboard()]);
-      } catch (err) { toast(err.message); }
-      finally { e.target.value = ''; }
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        e.target.value = '';
+      }
     };
 
     $('inpExpiry').min = new Date().toISOString().slice(0, 10);
