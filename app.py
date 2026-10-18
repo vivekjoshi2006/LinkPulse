@@ -580,16 +580,16 @@ def redirect_engine(short_code):
             return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
     # Safe Insert (Works even if country column was missing)
-    try:
+   try:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, 1 if is_bot else 0, country))
+        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0, country))
     except Exception:
         cur.execute("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, 1 if is_bot else 0))
+        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0))
         
     db.commit()
 
