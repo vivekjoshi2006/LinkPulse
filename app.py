@@ -25,6 +25,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
 
 initialize_database(Config)
 
+
 def auto_migrate():
     try:
         if get_engine() == "mysql":
@@ -83,6 +84,7 @@ def auto_migrate():
     except Exception as e:
         print("Auto-migration notice:", e)
 
+
 auto_migrate()
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -102,21 +104,21 @@ LINK_SELECT = """
     FROM links l LEFT JOIN campaigns c ON c.id = l.campaign_id
 """
 
+
 def iso(val):
-    if isinstance(val, datetime):
-        return val.isoformat(timespec="seconds")
-    return val
+    return val.isoformat(timespec="seconds") if isinstance(val, datetime) else val
+
 
 def short_url_for(code):
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
     if not base or "127.0.0.1" in base or "localhost" in base:
         try:
             proto = request.headers.get("X-Forwarded-Proto", request.scheme)
-            host = request.host
-            base = f"{proto}://{host}"
+            base = f"{proto}://{request.host}"
         except Exception:
             base = "http://localhost:5000"
     return f"{base}/{code}"
+
 
 def row_to_link(row):
     return {
@@ -138,63 +140,78 @@ def row_to_link(row):
         "user_id": row.get("user_id"),
     }
 
+
 def get_current_user():
-    if not session.get("authenticated"):
-        raise ApiError(401, "unauthorized", "Authentication required.")
     uid = session.get("user_id")
-    if not uid:
+    if not session.get("authenticated") or not uid:
         raise ApiError(401, "unauthorized", "Authentication required.")
+    
     user = query_one("SELECT * FROM users WHERE id = %s", (uid,))
     if not user:
         session.clear()
         raise ApiError(401, "unauthorized", "Session invalid. Please sign in again.")
     return user
 
+
 def get_user_link_or_404(link_id, user_id):
-    row = query_one(LINK_SELECT + " WHERE l.id = %s", (link_id,))
+    row = query_one(f"{LINK_SELECT} WHERE l.id = %s", (link_id,))
     if not row:
         raise ApiError(404, "not_found", "Requested short link does not exist.")
     if row.get("user_id") != user_id:
         raise ApiError(403, "forbidden", "You do not have permission to access or modify this link.")
     return row
 
+
 def json_body():
     payload = request.get_json(silent=True)
-    if payload is None or not isinstance(payload, dict):
+    if not isinstance(payload, dict):
         raise ApiError(400, "bad_request", "Expected valid JSON request body.")
     return payload
 
+
 def detect_country(req):
     ip = get_client_ip(req)
+    lang = (req.headers.get("Accept-Language") or "").lower()
+
     if ip in ("127.0.0.1", "::1", "localhost"):
-        lang = (req.headers.get("Accept-Language") or "").lower()
         return "India (Local Dev)" if "in" in lang else "Local Network"
 
     cf = req.headers.get("CF-IPCountry")
     if cf and len(cf) == 2:
         return cf.upper()
 
-    lang = (req.headers.get("Accept-Language") or "").lower()
-    if re.search(r"\b(in|hi|en-in)\b", lang):
-        return "India"
-    if re.search(r"\b(us|en-us)\b", lang):
-        return "United States"
-    if re.search(r"\b(gb|uk|en-gb)\b", lang):
-        return "United Kingdom"
-    if re.search(r"\b(ca|en-ca|fr-ca)\b", lang):
-        return "Canada"
-    if re.search(r"\b(de|de-de)\b", lang):
-        return "Germany"
-    if re.search(r"\b(fr|fr-fr)\b", lang):
-        return "France"
-    if re.search(r"\b(au|en-au)\b", lang):
-        return "Australia"
+    country_patterns = (
+        (r"\b(in|hi|en-in)\b", "India"),
+        (r"\b(us|en-us)\b", "United States"),
+        (r"\b(gb|uk|en-gb)\b", "United Kingdom"),
+        (r"\b(ca|en-ca|fr-ca)\b", "Canada"),
+        (r"\b(de|de-de)\b", "Germany"),
+        (r"\b(fr|fr-fr)\b", "France"),
+        (r"\b(au|en-au)\b", "Australia")
+    )
+    for pattern, name in country_patterns:
+        if re.search(pattern, lang):
+            return name
 
     return "Global / Direct"
+
+
+def _user_email(username):
+    return username if "@" in username else f"{username.lower()}@linkpulse.io"
+
+
+def _session_login(user):
+    session["authenticated"] = True
+    session["user_id"] = user["id"]
+    session["admin_name"] = user["name"]
+    session["user_role"] = user["role"]
+    session["user_country"] = user["country"]
+
 
 @app.errorhandler(ApiError)
 def handle_api_error(e):
     return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
+
 
 @app.errorhandler(404)
 def handle_404(e):
@@ -202,10 +219,11 @@ def handle_404(e):
         return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
     return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
 
+
 @app.errorhandler(Exception)
 def handle_all_exceptions(e):
-    error_trace = traceback.format_exc()
-    print("\n[UNHANDLED ERROR]:\n", error_trace)
+    trace = traceback.format_exc()
+    print("\n[UNHANDLED ERROR]:\n", trace)
     if isinstance(e, ApiError):
         return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
     if request.path.startswith("/api/"):
@@ -214,17 +232,19 @@ def handle_all_exceptions(e):
         f"""<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;">
         <h1 style="color:#dc2626;">500 Internal Server Error</h1>
         <p><strong>Error Details:</strong> {str(e)}</p>
-        <pre style="background:#fee2e2;padding:1rem;border-radius:8px;overflow-x:auto;">{error_trace}</pre>
+        <pre style="background:#fee2e2;padding:1rem;border-radius:8px;overflow-x:auto;">{trace}</pre>
         </body></html>""",
         status=500,
         mimetype="text/html"
     )
+
 
 @app.route("/login", methods=["GET"])
 def serve_login():
     if session.get("authenticated"):
         return redirect("/")
     return send_from_directory(FRONTEND_DIR, "login.html")
+
 
 @app.post("/api/login")
 def api_login():
@@ -244,11 +264,7 @@ def api_login():
             db.commit()
             admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
 
-        session["authenticated"] = True
-        session["user_id"] = admin_user["id"]
-        session["admin_name"] = admin_user["name"]
-        session["user_role"] = admin_user["role"]
-        session["user_country"] = admin_user["country"]
+        _session_login(admin_user)
         return jsonify({
             "data": {
                 "success": True,
@@ -261,22 +277,19 @@ def api_login():
 
     user = query_one("SELECT * FROM users WHERE username = %s", (username,))
     if user and user.get("password_hash") and check_password_hash(user["password_hash"], password):
-        session["authenticated"] = True
-        session["user_id"] = user["id"]
-        session["admin_name"] = user["name"]
-        session["user_role"] = user["role"]
-        session["user_country"] = user["country"]
+        _session_login(user)
         return jsonify({
             "data": {
                 "success": True,
                 "name": user["name"],
                 "role": user["role"],
                 "country": user["country"],
-                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
+                "email": _user_email(user["username"])
             }
         })
 
     raise ApiError(401, "unauthorized", "Invalid username or password.")
+
 
 @app.post("/api/register")
 def api_register():
@@ -311,11 +324,7 @@ def api_register():
     user_id = cur.lastrowid
     db.commit()
 
-    session["authenticated"] = True
-    session["user_id"] = user_id
-    session["admin_name"] = name
-    session["user_role"] = role
-    session["user_country"] = country
+    _session_login({"id": user_id, "name": name, "role": role, "country": country})
 
     return jsonify({
         "data": {
@@ -323,9 +332,10 @@ def api_register():
             "name": name,
             "role": role,
             "country": country,
-            "email": username if "@" in username else f"{username.lower()}@linkpulse.io"
+            "email": _user_email(username)
         }
     }), 201
+
 
 @app.post("/api/auth/google")
 def api_google_auth():
@@ -356,11 +366,7 @@ def api_google_auth():
         role = user["role"]
         country = user["country"]
 
-    session["authenticated"] = True
-    session["user_id"] = user_id
-    session["admin_name"] = name
-    session["user_role"] = role
-    session["user_country"] = country
+    _session_login({"id": user_id, "name": name, "role": role, "country": country})
 
     return jsonify({
         "data": {
@@ -372,10 +378,12 @@ def api_google_auth():
         }
     })
 
+
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
     return redirect("/login")
+
 
 @app.route("/api/account", methods=["GET", "PATCH"])
 def account_settings():
@@ -387,7 +395,7 @@ def account_settings():
                 "name": user["name"],
                 "role": user["role"],
                 "country": user["country"],
-                "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
+                "email": _user_email(user["username"])
             }
         })
 
@@ -414,9 +422,10 @@ def account_settings():
             "name": name,
             "role": role,
             "country": country,
-            "email": user["username"] if "@" in user["username"] else f"{user['username'].lower()}@linkpulse.io"
+            "email": _user_email(user["username"])
         }
     })
+
 
 @app.get("/")
 def serve_index():
@@ -424,31 +433,35 @@ def serve_index():
         return redirect("/login")
     return send_from_directory(FRONTEND_DIR, "index.html")
 
+
 @app.get("/style.css")
 def serve_css():
     return send_from_directory(FRONTEND_DIR, "style.css", mimetype="text/css")
+
 
 @app.get("/Group_Logo.png")
 def serve_group_logo():
     return send_from_directory(FRONTEND_DIR, "Group_Logo.png")
 
+
 @app.get("/favicon.ico")
 def serve_favicon():
     return Response(status=204)
+
 
 @app.get("/api/links")
 def list_links():
     user = get_current_user()
     q = (request.args.get("q") or "").strip()
-    sql = LINK_SELECT + " WHERE l.user_id = %s"
+    sql = f"{LINK_SELECT} WHERE l.user_id = %s"
     params = [user["id"]]
     if q:
         sql += " AND (l.title LIKE %s OR l.original_url LIKE %s OR l.short_code LIKE %s)"
-        p = f"%{q}%"
-        params.extend([p, p, p])
+        pattern = f"%{q}%"
+        params.extend([pattern, pattern, pattern])
     sql += " ORDER BY l.created_at DESC"
-    rows = query_all(sql, params)
-    return jsonify({"data": [row_to_link(r) for r in rows]})
+    return jsonify({"data": [row_to_link(r) for r in query_all(sql, params)]})
+
 
 @app.post("/api/links")
 def create_link():
@@ -508,6 +521,7 @@ def create_link():
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))}), 201
 
+
 @app.patch("/api/links/<int:link_id>")
 def update_link(link_id):
     user = get_current_user()
@@ -523,7 +537,8 @@ def update_link(link_id):
 
     if "title" in data:
         t = str(data.get("title") or "").strip()
-        if t: title = t[:160]
+        if t:
+            title = t[:160]
 
     if "original_url" in data:
         destination = validate_destination(data.get("original_url"))
@@ -567,6 +582,7 @@ def update_link(link_id):
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
+
 @app.patch("/api/links/<int:link_id>/status")
 def toggle_status(link_id):
     user = get_current_user()
@@ -580,6 +596,7 @@ def toggle_status(link_id):
     db.commit()
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
+
 @app.delete("/api/links/<int:link_id>")
 def delete_link(link_id):
     user = get_current_user()
@@ -588,6 +605,7 @@ def delete_link(link_id):
     db.cursor().execute("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
+
 
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
@@ -618,6 +636,7 @@ def simulate_click(link_id):
     db.commit()
     return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
 
+
 @app.get("/api/campaigns")
 def list_campaigns():
     user = get_current_user()
@@ -627,29 +646,55 @@ def list_campaigns():
                COALESCE(SUM(l.click_count), 0) AS click_count
         FROM campaigns c
         LEFT JOIN links l ON l.campaign_id = c.id AND l.user_id = %s
-        WHERE c.user_id = %s
+        WHERE c.user_id = %s OR c.user_id IS NULL
         GROUP BY c.id, c.name, c.tag, c.created_at
         ORDER BY c.created_at DESC
     """, (user["id"], user["id"]))
-    return jsonify({"data": rows})
+
+    clean_rows = []
+    for r in rows:
+        item = dict(r)
+        if isinstance(item.get("created_at"), datetime):
+            item["created_at"] = item["created_at"].isoformat()
+        item["click_count"] = int(item.get("click_count") or 0)
+        item["link_count"] = int(item.get("link_count") or 0)
+        clean_rows.append(item)
+
+    return jsonify({"data": clean_rows})
+
 
 @app.post("/api/campaigns")
 def create_campaign():
     user = get_current_user()
     data = json_body()
     name = str(data.get("name") or "").strip()
-    tag = slugify(str(data.get("tag") or name)).strip("-")
     if not name:
         raise ApiError(400, "invalid_campaign", "Campaign name is required.")
-    existing = query_one("SELECT id FROM campaigns WHERE (name = %s OR tag = %s) AND user_id = %s", (name, tag, user["id"]))
+
+    raw_tag = str(data.get("tag") or "").strip().lstrip("#")
+    tag = slugify(raw_tag) if raw_tag else slugify(name)
+    if not tag:
+        tag = f"camp-{int(datetime.now().timestamp())}"
+
+    existing = query_one(
+        "SELECT id FROM campaigns WHERE (LOWER(name) = LOWER(%s) OR LOWER(tag) = LOWER(%s)) AND user_id = %s",
+        (name, tag, user["id"])
+    )
     if existing:
-        raise ApiError(409, "conflict", "You already have a campaign with this name or tag.")
+        raise ApiError(409, "conflict", f"A campaign with this name or tag (#{tag}) already exists.")
+
     db = get_db()
     cur = db.cursor()
     cur.execute("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (name, tag, user["id"]))
     c_id = cur.lastrowid
     db.commit()
-    return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (c_id, user["id"]))}), 201
+
+    created = query_one("SELECT * FROM campaigns WHERE id = %s", (c_id,))
+    if created and isinstance(created.get("created_at"), datetime):
+        created["created_at"] = created["created_at"].isoformat()
+
+    return jsonify({"data": created}), 201
+
 
 @app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
 def update_campaign(campaign_id):
@@ -667,6 +712,7 @@ def update_campaign(campaign_id):
     db.commit()
     return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
 
+
 @app.delete("/api/campaigns/<int:campaign_id>")
 def delete_campaign(campaign_id):
     user = get_current_user()
@@ -678,6 +724,7 @@ def delete_campaign(campaign_id):
     db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
+
 
 @app.get("/api/analytics/summary")
 def analytics_summary():
@@ -705,6 +752,7 @@ def analytics_summary():
         "total_campaigns": max(0, camps["total_campaigns"] or 0) if camps else 0,
     }})
 
+
 @app.get("/api/analytics/clicks")
 def analytics_clicks():
     user = get_current_user()
@@ -726,12 +774,13 @@ def analytics_clicks():
     """, (start_date, user["id"]))
 
     counts = {str(r["d"]): max(0, r["c"]) for r in rows}
-    series = []
-    for i in range(days):
-        dt = (today - timedelta(days=i)).isoformat()
-        series.append({"date": dt, "clicks": max(0, counts.get(dt, 0))})
+    series = [
+        {"date": dt, "clicks": max(0, counts.get(dt, 0))}
+        for dt in ((today - timedelta(days=i)).isoformat() for i in range(days))
+    ]
 
     return jsonify({"data": series})
+
 
 @app.get("/api/analytics/breakdown")
 def analytics_breakdown():
@@ -744,35 +793,28 @@ def analytics_breakdown():
     """, (user["id"],))
     total_clicks = max(1, (total_row["c"] if total_row and total_row["c"] else 0))
 
-    sources = query_all("""
-        SELECT COALESCE(NULLIF(ce.referrer, ''), 'Direct / Email') AS source, COUNT(*) AS count
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-        GROUP BY source ORDER BY count DESC LIMIT 5
-    """, (user["id"],))
-    devices = query_all("""
-        SELECT COALESCE(NULLIF(ce.device_type, ''), 'desktop') AS source, COUNT(*) AS count
-        FROM click_events ce
-        JOIN links l ON l.id = ce.link_id
-        WHERE ce.is_bot = 0 AND l.user_id = %s
-        GROUP BY source ORDER BY count DESC LIMIT 5
-    """, (user["id"],))
-    try:
-        countries = query_all("""
-            SELECT COALESCE(NULLIF(ce.country, ''), 'Direct / Local') AS source, COUNT(*) AS count
+    def fetch_breakdown(expr, fallback):
+        return query_all(f"""
+            SELECT COALESCE(NULLIF({expr}, ''), %s) AS source, COUNT(*) AS count
             FROM click_events ce
             JOIN links l ON l.id = ce.link_id
             WHERE ce.is_bot = 0 AND l.user_id = %s
             GROUP BY source ORDER BY count DESC LIMIT 5
-        """, (user["id"],))
+        """, (fallback, user["id"]))
+
+    sources = fetch_breakdown("ce.referrer", "Direct / Email")
+    devices = fetch_breakdown("ce.device_type", "desktop")
+    try:
+        countries = fetch_breakdown("ce.country", "Direct / Local")
     except Exception:
         countries = []
 
     def present(rows):
-        return [{"name": str(item["source"]), "count": max(0, item["count"]),
-                 "pct": round((item["count"] / total_clicks) * 100)}
-                for item in rows]
+        return [
+            {"name": str(item["source"]), "count": max(0, item["count"]),
+             "pct": round((item["count"] / total_clicks) * 100)}
+            for item in rows
+        ]
 
     return jsonify({"data": {
         "sources": present(sources),
@@ -780,12 +822,13 @@ def analytics_breakdown():
         "countries": present(countries)
     }})
 
+
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
     if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout"):
         return Response(status=404)
 
-    row = query_one(LINK_SELECT + " WHERE l.short_code = %s OR l.custom_alias = %s", (short_code, short_code))
+    row = query_one(f"{LINK_SELECT} WHERE l.short_code = %s OR l.custom_alias = %s", (short_code, short_code))
     if not row:
         return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
 
@@ -899,13 +942,13 @@ def redirect_engine(short_code):
 
     db.commit()
 
-    code = 303 if request.method == "POST" else 302
-    return redirect(row["original_url"], code=code)
+    return redirect(row["original_url"], code=303 if request.method == "POST" else 302)
+
 
 @app.route("/api/links/export", methods=["GET"])
 def export_csv():
     user = get_current_user()
-    rows = query_all(LINK_SELECT + " WHERE l.user_id = %s ORDER BY l.created_at DESC", (user["id"],))
+    rows = query_all(f"{LINK_SELECT} WHERE l.user_id = %s ORDER BY l.created_at DESC", (user["id"],))
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["Title", "Destination", "Short URL", "Clicks", "Status", "Expires At", "Click Limit", "Campaign"])
@@ -920,6 +963,7 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=linkpulse-export-{datetime.now():%Y%m%d}.csv"}
     )
+
 
 @app.route("/api/links/import", methods=["POST"])
 def import_csv():
@@ -975,6 +1019,7 @@ def import_csv():
     db.commit()
     return jsonify({"data": {"imported": imported, "failed": failed, "errors": errors[:20]}})
 
+
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
     user = get_current_user()
@@ -1000,6 +1045,7 @@ def get_campaign_details(campaign_id):
         }
     })
 
+
 @app.route("/api/campaigns/<int:campaign_id>/assign-link", methods=["POST"])
 def assign_campaign_link(campaign_id):
     user = get_current_user()
@@ -1019,6 +1065,7 @@ def assign_campaign_link(campaign_id):
         db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s AND user_id = %s", (link_id, campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"success": True}})
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
