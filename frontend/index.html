@@ -16,7 +16,6 @@
 <body>
   <div class="app-layout">
 
-    <!-- Account Dashboard -->
     <div class="drawer-backdrop" id="accountModal">
       <div class="drawer-panel" style="max-width: 520px;">
         <div class="drawer-header">
@@ -28,7 +27,6 @@
           <button class="btn-drawer-close" onclick="$('accountModal').classList.remove('active')">&times;</button>
         </div>
 
-        <!-- User Header Preview -->
         <div
           style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: rgba(248, 250, 252, 0.95); border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 1.25rem;">
           <div class="user-avatar-gradient" id="modalAccountAvatar"
@@ -89,7 +87,6 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
     <aside class="sidebar" id="mainSidebar">
       <button class="btn-edge-toggle" id="toggleSidebarBtn" title="Collapse / Expand Sidebar">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -173,7 +170,6 @@
           </div>
         </div>
 
-        <!-- Sign Out Button -->
         <a href="/logout" class="sidebar-signout-btn" title="Sign out of LinkPulse">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -185,7 +181,6 @@
       </div>
     </aside>
 
-    <!-- Main Viewport -->
     <main class="main-viewport">
       <header class="glass-header">
         <div class="header-left">
@@ -221,9 +216,7 @@
         </div>
       </header>
 
-      <!-- TAB 1: Overview -->
       <section class="tab-pane active" id="tab-overview">
-        <!-- Stats -->
         <div class="stats-ribbon">
           <div class="stat-card tint-azure">
             <div class="stat-header"><span class="stat-title">Total Redirects</span></div>
@@ -247,7 +240,6 @@
           </div>
         </div>
 
-        <!-- Shorten Bar -->
         <div class="glass-container quick-bar">
           <div class="quick-input-group">
             <input type="text" id="quickUrlInput" class="quick-input-field"
@@ -256,7 +248,6 @@
           <button class="btn-gradient" id="quickShortenBtn"><span>Instant Shorten</span></button>
         </div>
 
-        <!-- Chart & Spotlight -->
         <div class="dashboard-split">
           <div class="glass-container chart-box">
             <div class="box-head-flex">
@@ -334,7 +325,6 @@
           </div>
         </div>
 
-        <!-- Column Panels -->
         <div class="breakdown-grid">
           <div class="glass-container breakdown-card">
             <h4 class="breakdown-title">Top Traffic Referrers</h4>
@@ -356,7 +346,6 @@
           </div>
         </div>
 
-        <!-- Table on Overview Tab -->
         <div class="glass-container table-wrapper-box">
           <div class="table-top-bar">
             <div>
@@ -396,7 +385,6 @@
         </div>
       </section>
 
-      <!-- Tab 2: Link Analytics -->
       <section class="tab-pane" id="tab-details">
         <div class="glass-container details-hero" style="margin-bottom: 1.5rem;">
           <div class="details-head-split">
@@ -460,7 +448,6 @@
         </div>
       </section>
 
-      <!-- Tab 3: Campaigns -->
       <section class="tab-pane" id="tab-campaigns">
         <div class="glass-container campaign-box">
           <div class="box-head-flex">
@@ -483,7 +470,6 @@
         </div>
       </section>
 
-      <!-- Tab 4: About Us -->
       <section class="tab-pane" id="tab-about">
         <div class="glass-container about-hero-box">
           <div class="hackathon-tag-pill">
@@ -491,7 +477,6 @@
             <span>Official Hackathon Innovation Project</span>
           </div>
 
-          <!-- Group Logo -->
           <div style="width: 100%; margin: 1.25rem 0; overflow: hidden; border-radius: 20px;">
             <img src="/Group_Logo.png" alt="Group Logo"
               style="width: 100%; max-height: 200px; object-fit: cover; object-position: center; display: block; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);" />
@@ -548,7 +533,6 @@
     </main>
   </div>
 
-  <!-- Centered Modal For Edit Link -->
   <div class="drawer-backdrop" id="linkDrawerBackdrop">
     <div class="drawer-panel" id="linkDrawer">
       <div class="drawer-header">
@@ -622,12 +606,10 @@
     </div>
   </div>
 
-  <!-- Campaign Details Modal -->
   <div class="drawer-backdrop" id="campaignDetailsModal">
     <div class="drawer-panel"
       style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
 
-      <!-- Header Section -->
       <div class="drawer-header"
         style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem;">
         <div>
@@ -644,7 +626,6 @@
           style="background: none; border: none; font-size: 1.6rem; color: #64748b; cursor: pointer;">&times;</button>
       </div>
 
-      <!-- Form Section -->
       <form id="editCampForm" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.35rem;">
         <input type="hidden" id="editCampId" />
 
@@ -667,17 +648,14 @@
 
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0 0 1.25rem 0;" />
 
-      <!-- Links Row -->
       <div
         style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
         <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0; white-space: nowrap;">Links in this
           Campaign</h4>
 
         <div style="display: flex; gap: 0.6rem; align-items: center;">
-          <!-- Hidden select for API logic -->
           <select id="selectLinkToAdd" style="display: none;"></select>
 
-          <!-- Custom Dropdown -->
           <div class="custom-dropdown-box" id="customLinkDropdown">
             <button type="button" class="custom-dropdown-trigger" id="customDropdownBtn">
               <span id="customDropdownLabel">Select a link...</span>
@@ -695,7 +673,6 @@
         </div>
       </div>
 
-      <!-- Assigned Links -->
       <div id="campAssignedLinksList"
         style="display: flex; flex-direction: column; gap: 0.65rem; min-height: 190px !important; max-height: 190px; overflow-y: auto; flex: 1;">
         <p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>
@@ -704,7 +681,6 @@
     </div>
   </div>
 
-  <!-- QR CODE MODAL -->
   <div class="modal-overlay" id="qrModal">
     <div class="modal-glass-container">
       <button class="modal-close-cross" id="closeQrBtn">&times;</button>
@@ -722,52 +698,46 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
-    window.$ = id => document.getElementById(id);
-    const $ = window.$;
+    const $ = id => document.getElementById(id);
+    window.$ = $;
+
     let cachedLinks = [];
     let cachedCampaigns = [];
-    let activeChartType = 'spline';
-    let lastChartData = [];
+    let chartType = 'spline';
+    let cachedChartData = [];
     let selectedLinkId = null;
 
     const escapeHTML = val => String(val ?? '').replace(/[&<>"']/g, ch => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[ch]));
 
-    $('campaignDetailsModal')?.addEventListener('click', e => {
-      if (e.target === $('campaignDetailsModal')) {
-        $('campaignDetailsModal').classList.remove('active');
-      }
-    });
-
-    $('qrModal')?.addEventListener('click', e => {
-      if (e.target === $('qrModal')) {
-        $('qrModal').classList.remove('active');
-      }
-    });
-
-    $('accountModal')?.addEventListener('click', e => {
-      if (e.target === $('accountModal')) {
-        $('accountModal').classList.remove('active');
-      }
+    [$('campaignDetailsModal'), $('qrModal'), $('accountModal')].forEach(modal => {
+      modal?.addEventListener('click', e => {
+        if (e.target === modal) modal.classList.remove('active');
+      });
     });
 
     async function api(path, opts = {}) {
-      const options = { ...opts, headers: { ...(opts.headers || {}) } };
-      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
-        options.body = JSON.stringify(options.body);
-        options.headers['Content-Type'] = 'application/json';
+      const headers = { ...opts.headers };
+      let body = opts.body;
+
+      if (body && typeof body === 'object' && !(body instanceof FormData)) {
+        body = JSON.stringify(body);
+        headers['Content-Type'] = 'application/json';
       }
-      const res = await fetch(path, options);
-      const json = await res.json().catch(() => null);
+
+      const res = await fetch(path, { ...opts, headers, body });
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
         if (res.status === 401) {
           window.location.href = '/login';
           return;
         }
-        throw new Error(json?.error?.message || `Request failed (${res.status})`);
+        throw new Error(data?.error?.message || `Request failed (${res.status})`);
       }
-      return (json && json.data !== undefined) ? json.data : json;
+
+      return data?.data !== undefined ? data.data : data;
     }
 
     function toast(msg) {
@@ -779,22 +749,20 @@
     }
 
     const sidebar = document.querySelector('.sidebar');
-    $('toggleSidebarBtn').onclick = () => {
-      sidebar.classList.toggle('collapsed');
-    };
+    $('toggleSidebarBtn').onclick = () => sidebar.classList.toggle('collapsed');
 
     if (window.innerWidth <= 1024) {
       sidebar?.classList.add('collapsed');
     }
 
-    document.querySelectorAll('.nav-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        const target = $(btn.dataset.tab);
-        if (target) target.classList.add('active');
-        $('pageTitle').textContent = btn.querySelector('span')?.textContent || 'Dashboard';
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+
+        tab.classList.add('active');
+        $(tab.dataset.tab)?.classList.add('active');
+        $('pageTitle').textContent = tab.querySelector('span')?.textContent || 'Dashboard';
       });
     });
 
@@ -803,35 +771,34 @@
       const role = localStorage.getItem('lp_admin_role') || 'Admin';
       const email = localStorage.getItem('lp_admin_email') || 'admin@linkpulse.io';
       const country = localStorage.getItem('lp_admin_country') || 'India';
+      const initials = name.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'AD';
 
       $('adminName').textContent = name;
       $('adminRole').textContent = role;
-
-      const initials = name.trim().split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'AD';
       $('adminAvatar').textContent = initials;
+      $('modalAccountAvatar').textContent = initials;
+      $('modalAccountNameDisplay').textContent = name;
+      $('modalAccountEmailDisplay').textContent = email;
 
       $('accName').value = name;
       $('accRole').value = role;
       $('accEmail').value = email;
       $('accCountry').value = country;
-      $('modalAccountAvatar').textContent = initials;
-      $('modalAccountNameDisplay').textContent = name;
-      $('modalAccountEmailDisplay').textContent = email;
     }
     loadAdminProfile();
 
     async function syncAdminProfile() {
       try {
         const acc = await api('/api/account');
-        if (acc) {
-          if (acc.name) localStorage.setItem('lp_admin_name', acc.name);
-          if (acc.role) localStorage.setItem('lp_admin_role', acc.role);
-          if (acc.country) localStorage.setItem('lp_admin_country', acc.country);
-          if (acc.email) localStorage.setItem('lp_admin_email', acc.email);
-          loadAdminProfile();
-        }
-      } catch (err) {
-        // Keep localStorage cache if endpoint is offline
+        if (!acc) return;
+
+        if (acc.name) localStorage.setItem('lp_admin_name', acc.name);
+        if (acc.role) localStorage.setItem('lp_admin_role', acc.role);
+        if (acc.country) localStorage.setItem('lp_admin_country', acc.country);
+        if (acc.email) localStorage.setItem('lp_admin_email', acc.email);
+        loadAdminProfile();
+      } catch {
+        // Fall back to cached local storage values
       }
     }
     syncAdminProfile();
@@ -866,47 +833,50 @@
     };
 
     function sanitizeDailySeries(raw) {
-      const result = [];
-      const map = {};
+      const counts = {};
       if (Array.isArray(raw)) {
         raw.forEach(r => {
-          if (r && r.date) map[String(r.date).slice(0, 10)] = Number(r.clicks) || 0;
+          if (r?.date) counts[String(r.date).slice(0, 10)] = Number(r.clicks) || 0;
         });
       }
 
-      // -1 se +5 (Yesterday, Today, aur aage ke 5 din = total 7 points)
-      for (let i = -1; i <= 5; i++) {
+      const points = [];
+      for (let offset = -1; offset <= 5; offset++) {
         const d = new Date();
-        d.setDate(d.getDate() + i);
+        d.setDate(d.getDate() + offset);
 
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         const iso = `${year}-${month}-${day}`;
 
-        let dayLabel = '';
-        if (i === -1) dayLabel = 'Yesterday';
-        else if (i === 0) dayLabel = 'Today';
-        else if (i === 1) dayLabel = 'Tomorrow';
-        else dayLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+        let label = '';
+        if (offset === -1) label = 'Yesterday';
+        else if (offset === 0) label = 'Today';
+        else if (offset === 1) label = 'Tomorrow';
+        else label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
 
-        result.push({
+        points.push({
           date: iso,
-          label: dayLabel,
-          clicks: map[iso] !== undefined ? map[iso] : 0
+          label,
+          clicks: counts[iso] ?? 0
         });
       }
-      return result;
+      return points;
     }
 
     function renderTrendChart(series) {
       const data = sanitizeDailySeries(series);
-      lastChartData = data;
-      const w = 700, h = 230, pad = 35;
+      cachedChartData = data;
+
+      const w = 700;
+      const h = 230;
+      const pad = 35;
       const maxVal = Math.max(...data.map(d => d.clicks), 5);
 
       const grid = $('gridLinesGroup');
       grid.replaceChildren();
+
       for (let i = 0; i <= 3; i++) {
         const y = pad + (i * (h - pad * 2) / 3);
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -920,21 +890,24 @@
       }
 
       const step = (w - pad * 2) / (data.length - 1);
-      const points = data.map((d, i) => {
-        const x = pad + (i * step);
-        const y = (h - pad) - ((d.clicks / maxVal) * (h - pad * 2));
-        return { x, y, clicks: d.clicks, label: d.label, date: d.date };
-      });
+      const points = data.map((d, i) => ({
+        x: pad + (i * step),
+        y: (h - pad) - ((d.clicks / maxVal) * (h - pad * 2)),
+        clicks: d.clicks,
+        label: d.label,
+        date: d.date
+      }));
 
       const barsGroup = $('barsGroup');
       const dotsGroup = $('dotsGroup');
       barsGroup.replaceChildren();
       dotsGroup.replaceChildren();
 
-      if (activeChartType === 'bars') {
+      if (chartType === 'bars') {
         $('chartLinePath').setAttribute('d', '');
         $('chartAreaPath').setAttribute('d', '');
         const barW = 34;
+
         points.forEach(pt => {
           const barH = (h - pad) - pt.y;
           const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -954,12 +927,10 @@
         for (let i = 0; i < points.length - 1; i++) {
           const curr = points[i];
           const next = points[i + 1];
-          const cp1x = curr.x + (next.x - curr.x) / 2;
-          const cp1y = curr.y;
-          const cp2x = curr.x + (next.x - curr.x) / 2;
-          const cp2y = next.y;
-          d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+          const cx = curr.x + (next.x - curr.x) / 2;
+          d += ` C ${cx} ${curr.y}, ${cx} ${next.y}, ${next.x} ${next.y}`;
         }
+
         $('chartLinePath').setAttribute('d', d);
         $('chartAreaPath').setAttribute('d', `${d} L ${points[points.length - 1].x} ${h - pad} L ${points[0].x} ${h - pad} Z`);
 
@@ -983,38 +954,38 @@
       $('ttDate').textContent = pt.label;
       $('ttClicks').textContent = `${pt.clicks} redirects`;
       tt.classList.add('visible');
-      const pctX = (pt.x / 700) * 100;
-      const pctY = (pt.y / 230) * 100;
-      tt.style.left = `${pctX}%`;
-      tt.style.top = `${pctY}%`;
+      tt.style.left = `${(pt.x / 700) * 100}%`;
+      tt.style.top = `${(pt.y / 230) * 100}%`;
     }
 
-    function hideTooltip() { $('chartTooltip').classList.remove('visible'); }
+    function hideTooltip() {
+      $('chartTooltip').classList.remove('visible');
+    }
 
     const drawerBackdrop = $('linkDrawerBackdrop');
 
-    function openDrawer(editData = null) {
+    function openDrawer(item = null) {
       $('drawerErrorBox').style.display = 'none';
       const clearGroup = $('clearPasswordGroup');
       const clearChk = $('inpClearPassword');
 
-      if (editData) {
+      if (item) {
         $('drawerModeTag').textContent = 'Edit Mode';
         $('drawerTitle').textContent = 'Update Short Link';
         $('submitBtnText').textContent = 'Save Changes';
-        $('editLinkId').value = editData.id;
-        $('inpUrl').value = editData.original_url || '';
-        $('inpTitle').value = editData.title || '';
-        $('inpAlias').value = editData.custom_alias || editData.short_code || '';
+        $('editLinkId').value = item.id;
+        $('inpUrl').value = item.original_url || '';
+        $('inpTitle').value = item.title || '';
+        $('inpAlias').value = item.custom_alias || item.short_code || '';
         $('inpAlias').disabled = true;
-        $('inpLimit').value = editData.click_limit || '';
-        $('inpExpiry').value = editData.expires_at ? String(editData.expires_at).slice(0, 10) : '';
-        $('inpCampaign').value = editData.campaign_id || '';
+        $('inpLimit').value = item.click_limit || '';
+        $('inpExpiry').value = item.expires_at ? String(item.expires_at).slice(0, 10) : '';
+        $('inpCampaign').value = item.campaign_id || '';
         $('inpPassword').value = '';
-        $('inpPassword').placeholder = editData.has_password ? 'Leave empty to keep current password' : 'Leave empty for public';
+        $('inpPassword').placeholder = item.has_password ? 'Leave empty to keep current password' : 'Leave empty for public';
 
         if (clearGroup && clearChk) {
-          clearGroup.style.display = editData.has_password ? 'block' : 'none';
+          clearGroup.style.display = item.has_password ? 'block' : 'none';
           clearChk.checked = false;
         }
       } else {
@@ -1035,7 +1006,9 @@
       drawerBackdrop.classList.add('active');
     }
 
-    function closeDrawer() { drawerBackdrop.classList.remove('active'); }
+    function closeDrawer() {
+      drawerBackdrop.classList.remove('active');
+    }
 
     $('openDrawerBtn').onclick = () => openDrawer(null);
     $('closeDrawerBtn').onclick = closeDrawer;
@@ -1058,40 +1031,38 @@
     $('createLinkForm').onsubmit = async e => {
       e.preventDefault();
       const errBox = $('drawerErrorBox');
-      errBox.style.display = 'none';
-      const btn = $('submitLinkBtn');
-      btn.disabled = true;
+      const submitBtn = $('submitLinkBtn');
 
-      const editId = $('editLinkId').value;
-      const destination = $('inpUrl').value.trim();
+      errBox.style.display = 'none';
+      submitBtn.disabled = true;
+
+      const id = $('editLinkId').value;
+      const url = $('inpUrl').value.trim();
 
       try {
-        if (editId) {
-          const updatePayload = {
+        if (id) {
+          const payload = {
             title: $('inpTitle').value.trim() || undefined,
-            original_url: destination,
+            original_url: url,
             click_limit: $('inpLimit').value ? Number($('inpLimit').value) : null,
             expires_at: $('inpExpiry').value || null,
             campaign_id: $('inpCampaign').value ? Number($('inpCampaign').value) : null
           };
 
           if ($('inpClearPassword')?.checked) {
-            updatePayload.clear_password = true;
+            payload.clear_password = true;
           } else if ($('inpPassword').value.trim() !== '') {
-            updatePayload.password = $('inpPassword').value.trim();
+            payload.password = $('inpPassword').value.trim();
           }
 
-          await api(`/api/links/${editId}`, {
-            method: 'PATCH',
-            body: updatePayload
-          });
+          await api(`/api/links/${id}`, { method: 'PATCH', body: payload });
           toast('Link updated successfully!');
         } else {
           await api('/api/links', {
             method: 'POST',
             body: {
               title: $('inpTitle').value.trim() || undefined,
-              original_url: destination,
+              original_url: url,
               custom_alias: $('inpAlias').value.trim() || undefined,
               click_limit: $('inpLimit').value ? Number($('inpLimit').value) : undefined,
               expires_at: $('inpExpiry').value || undefined,
@@ -1101,13 +1072,14 @@
           });
           toast('Short link created successfully!');
         }
+
         closeDrawer();
         await Promise.all([loadLinks(), refreshDashboard(), loadCampaigns()]);
       } catch (err) {
         errBox.textContent = err.message;
         errBox.style.display = 'block';
       } finally {
-        btn.disabled = false;
+        submitBtn.disabled = false;
       }
     };
 
@@ -1128,27 +1100,24 @@
 
         renderTrendChart(clicks);
 
-        const sources = breakdown?.sources || [];
-        $('sourceRows').innerHTML = sources.length ? sources.map(s => `
-          <div class="metric-progress-item">
-            <div class="progress-meta"><span>${escapeHTML(s.name)}</span><span>${Number(s.count || 0)} (${Number(s.pct || 0)}%)</span></div>
-            <div class="progress-bar-bg"><div class="progress-fill grad-azure" style="width:${Math.min(100, Math.max(0, Number(s.pct) || 0))}%"></div></div>
-          </div>`).join('') : '<p class="empty-placeholder">No traffic referrers logged yet.</p>';
+        const renderBarRows = (items, targetId, fillClass, emptyText) => {
+          $(targetId).innerHTML = items?.length
+            ? items.map(item => `
+              <div class="metric-progress-item">
+                <div class="progress-meta">
+                  <span>${escapeHTML(item.name)}</span>
+                  <span>${Number(item.count || 0)} (${Number(item.pct || 0)}%)</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div class="progress-fill ${fillClass}" style="width:${Math.min(100, Math.max(0, Number(item.pct) || 0))}%"></div>
+                </div>
+              </div>`).join('')
+            : `<p class="empty-placeholder">${emptyText}</p>`;
+        };
 
-        const devices = breakdown?.devices || [];
-        $('deviceRows').innerHTML = devices.length ? devices.map(s => `
-          <div class="metric-progress-item">
-            <div class="progress-meta"><span>${escapeHTML(s.name)}</span><span>${Number(s.count || 0)} (${Number(s.pct || 0)}%)</span></div>
-            <div class="progress-bar-bg"><div class="progress-fill grad-violet" style="width:${Math.min(100, Math.max(0, Number(s.pct) || 0))}%"></div></div>
-          </div>`).join('') : '<p class="empty-placeholder">No device telemetry logged yet.</p>';
-
-        const countries = breakdown?.countries || [];
-        $('countryRows').innerHTML = countries.length ? countries.map(c => `
-          <div class="metric-progress-item">
-            <div class="progress-meta"><span>${escapeHTML(c.name)}</span><span>${Number(c.count || 0)} (${Number(c.pct || 0)}%)</span></div>
-            <div class="progress-bar-bg"><div class="progress-fill grad-emerald" style="width:${Math.min(100, Math.max(0, Number(c.pct) || 0))}%"></div></div>
-          </div>`).join('') : '<p class="empty-placeholder">No geographic data logged yet.</p>';
-
+        renderBarRows(breakdown?.sources, 'sourceRows', 'grad-azure', 'No traffic referrers logged yet.');
+        renderBarRows(breakdown?.devices, 'deviceRows', 'grad-violet', 'No device telemetry logged yet.');
+        renderBarRows(breakdown?.countries, 'countryRows', 'grad-emerald', 'No geographic data logged yet.');
       } catch (err) {
         console.error('Dashboard error:', err);
       }
@@ -1165,6 +1134,7 @@
         $('detCreated').textContent = '--';
         return;
       }
+
       selectedLinkId = link.id;
       $('detTitle').textContent = link.title || 'Untitled Link';
       $('detUrl').textContent = link.original_url;
@@ -1178,9 +1148,10 @@
 
     async function loadLinks() {
       try {
-        const resData = await api('/api/links'); 
-        cachedLinks = Array.isArray(resData) ? resData : [];
+        const data = await api('/api/links');
+        cachedLinks = Array.isArray(data) ? data : [];
         renderLinks(filteredLinks());
+
         if (cachedLinks.length > 0) {
           updateSpotlight(cachedLinks[0]);
           if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
@@ -1201,33 +1172,32 @@
 
     function filteredLinks() {
       if (!Array.isArray(cachedLinks)) return [];
-      const q = $('searchInput').value.trim().toLowerCase();
+      const query = $('searchInput').value.trim().toLowerCase();
       const status = $('statusFilter').value;
+
       return cachedLinks.filter(l => {
-        const matchesQ = [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || ''].some(v => String(v).toLowerCase().includes(q));
-        const matchesStatus = (status === 'all') || (status === l.status);
-        return matchesQ && matchesStatus;
+        const matchesQuery = [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || '']
+          .some(v => String(v).toLowerCase().includes(query));
+        const matchesStatus = status === 'all' || status === l.status;
+        return matchesQuery && matchesStatus;
       });
     }
 
-    function renderLinks(links) {
-      $('linksTbody').innerHTML = links.map(l => {
+    function buildLinkRows(links, isDetailsView = false) {
+      if (!links.length) {
+        const cols = isDetailsView ? 5 : 6;
+        const msg = isDetailsView ? 'No short links found.' : 'No short links found. Create one above!';
+        return `<tr><td colspan="${cols}" class="table-empty">${msg}</td></tr>`;
+      }
+
+      return links.map(l => {
         const code = escapeHTML(l.custom_alias || l.short_code);
         const shortUrl = escapeHTML(l.short_url);
         const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
         const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
+        const titleText = isDetailsView ? 'Click row to inspect live telemetry' : 'Click row to inspect';
 
-        return `<tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="Click row to inspect">
-          <td>
-            <div class="table-link-meta">
-              <span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
-              <span class="table-dest" title="${escapeHTML(l.original_url)}">${escapeHTML(l.original_url)}</span>
-            </div>
-          </td>
-          <td><a href="${shortUrl}" target="_blank" rel="noopener" class="code-link-badge">${code}</a></td>
-          <td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
-          <td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
-          <td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
+        const actionCell = isDetailsView ? '' : `
           <td style="text-align: right;">
             <div class="table-action-row">
               <button class="action-icon-btn btn-simulate" data-action="test-click" data-id="${Number(l.id)}" title="Simulate 1 Click">⚡ Test</button>
@@ -1236,19 +1206,10 @@
               <button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}">${status === 'active' ? '⏸' : '▶'}</button>
               <button class="action-icon-btn btn-danger-action" data-action="delete" data-id="${Number(l.id)}">✕</button>
             </div>
-          </td>
-        </tr>`;
-      }).join('') || '<tr><td colspan="6" class="table-empty">No short links found. Create one above!</td></tr>';
+          </td>`;
 
-      const elAnalytics = $('linksTbodyAnalytics');
-      if (elAnalytics) {
-        elAnalytics.innerHTML = links.map(l => {
-          const code = escapeHTML(l.custom_alias || l.short_code);
-          const shortUrl = escapeHTML(l.short_url);
-          const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
-          const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
-
-          return `<tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="Click row to inspect live telemetry">
+        return `
+          <tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="${titleText}">
             <td>
               <div class="table-link-meta">
                 <span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
@@ -1259,8 +1220,16 @@
             <td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
             <td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
             <td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
+            ${actionCell}
           </tr>`;
-        }).join('') || '<tr><td colspan="5" class="table-empty">No short links found.</td></tr>';
+      }).join('');
+    }
+
+    function renderLinks(links) {
+      $('linksTbody').innerHTML = buildLinkRows(links, false);
+      const analyticsBody = $('linksTbodyAnalytics');
+      if (analyticsBody) {
+        analyticsBody.innerHTML = buildLinkRows(links, true);
       }
     }
 
@@ -1271,9 +1240,12 @@
       $('spotlightShortUrl').value = link.short_url || '';
       $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
       $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code, '#spotlightQrBox');
+
       const box = $('spotlightQrBox');
       box.replaceChildren();
-      if (typeof QRCode !== 'undefined') new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+      }
     }
 
     async function copyLink(url) {
@@ -1288,29 +1260,33 @@
     function openQr(url, code) {
       $('qrUrlLabel').textContent = url;
       $('qrModal').classList.add('active');
+
       const box = $('qrCanvasBox');
       box.replaceChildren();
-      if (typeof QRCode !== 'undefined') new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
+      }
+
       $('downloadQrBtn').onclick = () => downloadQr(code, '#qrCanvasBox');
     }
 
     function downloadQr(code, containerSelector = '#qrCanvasBox') {
-      const container = document.querySelector(containerSelector);
-      const canvas = container ? container.querySelector('canvas') : null;
-      if (canvas) {
-        const a = document.createElement('a');
-        a.download = `qr-${code || 'shortlink'}.png`;
-        a.href = canvas.toDataURL('image/png');
-        a.click();
-        toast('QR PNG downloaded!');
-      } else {
+      const canvas = document.querySelector(containerSelector)?.querySelector('canvas');
+      if (!canvas) {
         toast('Unable to locate QR canvas.');
+        return;
       }
+      const anchor = document.createElement('a');
+      anchor.download = `qr-${code || 'shortlink'}.png`;
+      anchor.href = canvas.toDataURL('image/png');
+      anchor.click();
+      toast('QR PNG downloaded!');
     }
 
     $('quickShortenBtn').onclick = async () => {
       const url = $('quickUrlInput').value.trim();
       if (!url) return toast('Please enter a destination URL.');
+
       try {
         await api('/api/links', { method: 'POST', body: { original_url: url } });
         $('quickUrlInput').value = '';
@@ -1330,14 +1306,12 @@
 
     document.addEventListener('click', e => {
       const row = e.target.closest('tr.clickable-row');
-      if (!row) return;
-      if (e.target.closest('[data-action]') || e.target.closest('a')) return;
+      if (!row || e.target.closest('[data-action]') || e.target.closest('a')) return;
 
-      const id = Number(row.dataset.linkId);
-      const link = cachedLinks.find(l => l.id === id);
+      const link = cachedLinks.find(l => l.id === Number(row.dataset.linkId));
       if (link) {
         inspectLink(link);
-        updateSpotlight(link); // Updates spotlight card on row click
+        updateSpotlight(link);
         toast(`Inspecting: ${link.title || link.short_code}`);
       }
     });
@@ -1345,12 +1319,17 @@
     document.addEventListener('click', async e => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
+
       const link = cachedLinks.find(l => Number(l.id) === Number(btn.dataset.id));
       if (!link) return;
 
-      if (btn.dataset.action === 'qr') return openQr(link.short_url, link.custom_alias || link.short_code);
-      if (btn.dataset.action === 'edit') return openDrawer(link);
-      if (btn.dataset.action === 'test-click') {
+      const { action } = btn.dataset;
+      const code = link.custom_alias || link.short_code;
+
+      if (action === 'qr') return openQr(link.short_url, code);
+      if (action === 'edit') return openDrawer(link);
+
+      if (action === 'test-click') {
         try {
           await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
           toast(`⚡ Simulated 1 click! Watch the graph update.`);
@@ -1359,13 +1338,15 @@
           toast(err.message);
         }
       }
-      if (btn.dataset.action === 'toggle') {
-        const next = link.status === 'active' ? 'disabled' : 'active';
-        await api(`/api/links/${link.id}/status`, { method: 'PATCH', body: { status: next } });
-        toast(`Link marked as ${next}`);
+
+      if (action === 'toggle') {
+        const status = link.status === 'active' ? 'disabled' : 'active';
+        await api(`/api/links/${link.id}/status`, { method: 'PATCH', body: { status } });
+        toast(`Link marked as ${status}`);
         return Promise.all([loadLinks(), refreshDashboard()]);
       }
-      if (btn.dataset.action === 'delete') {
+
+      if (action === 'delete') {
         if (!confirm('Are you sure you want to delete this short link?')) return;
         await api(`/api/links/${link.id}`, { method: 'DELETE' });
         toast('Link deleted');
@@ -1375,8 +1356,7 @@
 
     async function openCampaignModal(campaignId) {
       try {
-        const res = await api(`/api/campaigns/${campaignId}/details`);
-        const { campaign, assigned_links, all_links } = res;
+        const { campaign, assigned_links, all_links } = await api(`/api/campaigns/${campaignId}/details`);
 
         $('editCampId').value = campaign.id;
         $('editCampName').value = campaign.name;
@@ -1397,19 +1377,19 @@
           $('selectLinkToAdd').value = unassigned[0].id;
           $('customDropdownLabel').textContent = unassigned[0].title || unassigned[0].custom_alias || unassigned[0].short_code;
 
-          unassigned.forEach((link, idx) => {
-            const item = document.createElement('div');
-            item.className = `custom-dropdown-item ${idx === 0 ? 'active' : ''}`;
-            item.textContent = link.title || link.custom_alias || link.short_code;
-            item.onclick = (e) => {
+          unassigned.forEach((item, i) => {
+            const row = document.createElement('div');
+            row.className = `custom-dropdown-item ${i === 0 ? 'active' : ''}`;
+            row.textContent = item.title || item.custom_alias || item.short_code;
+            row.onclick = e => {
               e.stopPropagation();
-              $('selectLinkToAdd').value = link.id;
-              $('customDropdownLabel').textContent = link.title || link.custom_alias || link.short_code;
+              $('selectLinkToAdd').value = item.id;
+              $('customDropdownLabel').textContent = item.title || item.custom_alias || item.short_code;
               document.querySelectorAll('.custom-dropdown-item').forEach(el => el.classList.remove('active'));
-              item.classList.add('active');
+              row.classList.add('active');
               $('customLinkDropdown').classList.remove('open');
             };
-            menu.appendChild(item);
+            menu.appendChild(row);
           });
         } else {
           $('selectLinkToAdd').value = '';
@@ -1472,12 +1452,12 @@
       }
     };
 
-    $('customDropdownBtn').onclick = (e) => {
+    $('customDropdownBtn').onclick = e => {
       e.stopPropagation();
       $('customLinkDropdown').classList.toggle('open');
     };
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', e => {
       if (!$('customLinkDropdown')?.contains(e.target)) {
         $('customLinkDropdown')?.classList.remove('open');
       }
@@ -1501,9 +1481,11 @@
       try {
         const data = await api('/api/campaigns');
         cachedCampaigns = Array.isArray(data) ? data : [];
+
         if ($('campaignCount')) {
           $('campaignCount').textContent = `${cachedCampaigns.length} campaigns`;
         }
+
         if ($('campaignRows')) {
           $('campaignRows').innerHTML = cachedCampaigns.map(c => `
             <div class="campaign-tile-card">
@@ -1523,7 +1505,8 @@
         }
 
         if ($('inpCampaign')) {
-          $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' + cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+          $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' +
+            cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
         }
       } catch (err) {
         console.error('Campaigns error:', err);
@@ -1561,9 +1544,7 @@
     $('campaignRows').addEventListener('click', async e => {
       const editBtn = e.target.closest('[data-camp-edit]');
       if (editBtn) {
-        const id = Number(editBtn.dataset.campEdit);
-        openCampaignModal(id);
-        return;
+        return openCampaignModal(Number(editBtn.dataset.campEdit));
       }
 
       const delBtn = e.target.closest('[data-camp-del]');
@@ -1578,15 +1559,34 @@
 
     $('searchInput').oninput = () => renderLinks(filteredLinks());
     $('statusFilter').onchange = () => renderLinks(filteredLinks());
-    $('btnChartSpline').onclick = () => { activeChartType = 'spline'; $('btnChartSpline').classList.add('active'); $('btnChartBars').classList.remove('active'); renderTrendChart(lastChartData); };
-    $('btnChartBars').onclick = () => { activeChartType = 'bars'; $('btnChartBars').classList.add('active'); $('btnChartSpline').classList.remove('active'); renderTrendChart(lastChartData); };
 
-    $('exportCsvBtn').onclick = () => { window.location.href = '/api/links/export'; };
+    $('btnChartSpline').onclick = () => {
+      chartType = 'spline';
+      $('btnChartSpline').classList.add('active');
+      $('btnChartBars').classList.remove('active');
+      renderTrendChart(cachedChartData);
+    };
+
+    $('btnChartBars').onclick = () => {
+      chartType = 'bars';
+      $('btnChartBars').classList.add('active');
+      $('btnChartSpline').classList.remove('active');
+      renderTrendChart(cachedChartData);
+    };
+
+    $('exportCsvBtn').onclick = () => {
+      window.location.href = '/api/links/export';
+    };
+
     $('importCsvBtn').onclick = () => $('csvFileInput').click();
+
     $('csvFileInput').onchange = async e => {
       const file = e.target.files[0];
       if (!file) return;
-      const fd = new FormData(); fd.append('file', file);
+
+      const fd = new FormData();
+      fd.append('file', file);
+
       try {
         const res = await api('/api/links/import', { method: 'POST', body: fd });
         toast(`Imported ${res.imported} links.`);
@@ -1601,7 +1601,10 @@
     $('inpExpiry').min = new Date().toISOString().slice(0, 10);
 
     Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
-    setInterval(() => { refreshDashboard(); loadLinks(); }, 25000);
+    setInterval(() => {
+      refreshDashboard();
+      loadLinks();
+    }, 25000);
   </script>
 </body>
 
