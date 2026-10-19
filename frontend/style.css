@@ -1400,7 +1400,7 @@ tr.selected-row {
 .drawer-panel {
   position: relative;
   width: 100%;
-  max-width: 560px;
+  max-width: 680px;
   max-height: 90vh;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.96);
@@ -2150,3 +2150,171 @@ tr.selected-row {
   background: #cbd5e1;
   border-radius: 10px;
 }
+
+.chart-stage {
+  height: auto !important;
+  min-height: 265px !important;
+  padding-bottom: 0.75rem !important;
+}
+
+.chart-stage svg {
+  height: 260px !important;
+  display: block;
+}
+
+.chart-labels-row {
+  margin-top: 0.75rem !important;
+  padding: 0 0.5rem !important;
+}
+
+  /* Zoom Out Scrollbar */
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+    margin: 0;
+  }
+
+  .app-layout {
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .main-viewport {
+    flex: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  .tab-pane,
+  .table-wrapper-box,
+  .glass-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4) !important;
+    border-radius: 10px !important;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.6) !important;
+  }
+
+  /* Table Layout */
+  .responsive-table-scroll {
+    width: 100% !important;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  #tab-manage-links .glass-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+  }
+
+  /* Column Widths */
+  #tab-manage-links .glass-table th:nth-child(1),
+  #tab-manage-links .glass-table td:nth-child(1) { width: 33% !important; } /* Destination & Meta */
+
+  #tab-manage-links .glass-table th:nth-child(2),
+  #tab-manage-links .glass-table td:nth-child(2) { width: 13% !important; } /* Short Code */
+
+  #tab-manage-links .glass-table th:nth-child(3),
+  #tab-manage-links .glass-table td:nth-child(3) { width: 8% !important; text-align: center; } /* Clicks */
+
+  #tab-manage-links .glass-table th:nth-child(4),
+  #tab-manage-links .glass-table td:nth-child(4) { width: 11% !important; text-align: center; } /* Status */
+
+  #tab-manage-links .glass-table th:nth-child(5),
+  #tab-manage-links .glass-table td:nth-child(5) { 
+    width: 12% !important; 
+    text-align: center;
+    white-space: nowrap !important; /* Date overlap nahi hogi */
+  } /* Created */
+
+  #tab-manage-links .glass-table th:nth-child(6),
+  #tab-manage-links .glass-table td:nth-child(6) { 
+    width: 23% !important; 
+    text-align: right !important; 
+  } /* Actions */
+
+  /*Clean text ellipsis for long links*/
+  .table-link-meta {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .table-title, .table-dest {
+    display: block !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Sticky */
+  #tab-manage-links .glass-table th:last-child {
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 5 !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+    border-left: none !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Body cell background */
+  #tab-manage-links .glass-table td:last-child {
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 5 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border-left: none !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Hover state */
+  #tab-manage-links .glass-table tr:hover td:last-child {
+    background: #f8fafc !important;
+  }
+
+  /* Selected Row state */
+  #tab-manage-links .glass-table tr.selected-row td:last-child {
+    background: #eff6ff !important;
+  }
+
+  /* Action buttons row alignment */
+  .table-action-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 0.35rem !important;
+    white-space: nowrap !important;
+    min-width: 185px !important;
+  }
+
+  .action-icon-btn {
+    flex-shrink: 0 !important;
+  }
