@@ -8,22 +8,21 @@ from flask import current_app, g
 BASE_DIR = Path(__file__).resolve().parent
 ACTIVE_ENGINE = "sqlite"
 
+
 def get_engine():
     global ACTIVE_ENGINE
     return ACTIVE_ENGINE
 
+
 class UniversalCursor:
-    """Normalizes query execution across SQLite and PyMySQL."""
-    def __init__(self, raw_cursor, is_sqlite=False):
-        self.cur = raw_cursor
+    def __init__(self, cursor, is_sqlite=False):
+        self.cur = cursor
         self.is_sqlite = is_sqlite
 
     def execute(self, sql, params=()):
         if self.is_sqlite:
-            # Convert MySQL %s parameter syntax to SQLite ? syntax
             sql = re.sub(r'(?<!%)(%s)', '?', sql)
             sql = sql.replace('%%', '%')
-            # Normalize MySQL date functions to SQLite syntax
             sql = re.sub(
                 r'CURDATE\(\)\s*-\s*INTERVAL\s*\?\s*(?:DAY|DAYS)',
                 "datetime('now', '-' || ? || ' days')",
@@ -32,20 +31,17 @@ class UniversalCursor:
             )
             sql = re.sub(r'CURDATE\(\)', "date('now')", sql, flags=re.IGNORECASE)
             sql = re.sub(r'NOW\(\)', "datetime('now')", sql, flags=re.IGNORECASE)
+
         self.cur.execute(sql, params)
         return self
 
     def fetchall(self):
         rows = self.cur.fetchall()
-        if self.is_sqlite:
-            return [dict(r) for r in rows]
-        return rows
+        return [dict(r) for r in rows] if self.is_sqlite else rows
 
     def fetchone(self):
         row = self.cur.fetchone()
-        if self.is_sqlite and row is not None:
-            return dict(row)
-        return row
+        return dict(row) if (self.is_sqlite and row is not None) else row
 
     @property
     def lastrowid(self):
@@ -54,6 +50,7 @@ class UniversalCursor:
     @property
     def rowcount(self):
         return self.cur.rowcount
+
 
 class UniversalDB:
     def __init__(self, conn, is_sqlite=False):
@@ -75,21 +72,28 @@ class UniversalDB:
     def close(self):
         self.conn.close()
 
+
 def _sqlite_curdate():
     return datetime.now().strftime("%Y-%m-%d")
 
+
 def _sqlite_now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def get_db():
     if "db" not in g:
         cfg = current_app.config
         if ACTIVE_ENGINE == "mysql":
             conn = pymysql.connect(
-                host=cfg["DB_HOST"], port=cfg["DB_PORT"],
-                user=cfg["DB_USER"], password=cfg["DB_PASSWORD"],
-                database=cfg["DB_NAME"], charset="utf8mb4",
-                autocommit=False, cursorclass=pymysql.cursors.DictCursor
+                host=cfg["DB_HOST"],
+                port=cfg["DB_PORT"],
+                user=cfg["DB_USER"],
+                password=cfg["DB_PASSWORD"],
+                database=cfg["DB_NAME"],
+                charset="utf8mb4",
+                autocommit=False,
+                cursorclass=pymysql.cursors.DictCursor
             )
             g.db = UniversalDB(conn, is_sqlite=False)
         else:
@@ -100,36 +104,39 @@ def get_db():
             g.db = UniversalDB(conn, is_sqlite=True)
     return g.db
 
+
 def close_db(exc=None):
     db = g.pop("db", None)
     if db is not None:
         try:
-            if exc is None:
-                db.commit()
-            else:
-                db.rollback()
+            db.rollback() if exc else db.commit()
         finally:
             db.close()
 
+
 def query_all(sql, params=()):
-    db = get_db()
-    cur = db.cursor()
+    cur = get_db().cursor()
     cur.execute(sql, params)
     return cur.fetchall()
 
+
 def query_one(sql, params=()):
-    db = get_db()
-    cur = db.cursor()
+    cur = get_db().cursor()
     cur.execute(sql, params)
     return cur.fetchone()
+
 
 def initialize_database(cfg):
     global ACTIVE_ENGINE
     if cfg.DB_ENGINE in ("mysql", "auto"):
         try:
             conn = pymysql.connect(
-                host=cfg.DB_HOST, port=cfg.DB_PORT, user=cfg.DB_USER,
-                password=cfg.DB_PASSWORD, charset="utf8mb4", autocommit=True
+                host=cfg.DB_HOST,
+                port=cfg.DB_PORT,
+                user=cfg.DB_USER,
+                password=cfg.DB_PASSWORD,
+                charset="utf8mb4",
+                autocommit=True
             )
             with conn.cursor() as cur:
                 cur.execute(f"CREATE DATABASE IF NOT EXISTS `{cfg.DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
@@ -142,13 +149,13 @@ def initialize_database(cfg):
         except Exception as e:
             print(f"[LinkPulse DB Notice] MySQL connection failed ({e}). Defaulting to SQLite.")
 
-    # SQLite Fallback
     ACTIVE_ENGINE = "sqlite"
     conn = sqlite3.connect(cfg.SQLITE_PATH)
     conn.execute("PRAGMA foreign_keys = ON;")
     _create_sqlite_tables(conn)
     conn.close()
     return "SQLite (Embedded Zero-Config)"
+
 
 def _create_sqlite_tables(conn):
     conn.executescript("""
@@ -204,13 +211,13 @@ def _create_sqlite_tables(conn):
 
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(campaigns);")
-    c_cols = [r[1] for r in cur.fetchall()]
-    if c_cols and "user_id" not in c_cols:
+    campaign_cols = [r[1] for r in cur.fetchall()]
+    if campaign_cols and "user_id" not in campaign_cols:
         cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE;")
 
     cur.execute("PRAGMA table_info(links);")
-    l_cols = [r[1] for r in cur.fetchall()]
-    if l_cols and "user_id" not in l_cols:
+    link_cols = [r[1] for r in cur.fetchall()]
+    if link_cols and "user_id" not in link_cols:
         cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE;")
 
     conn.executescript("""
@@ -221,6 +228,7 @@ def _create_sqlite_tables(conn):
     CREATE INDEX IF NOT EXISTS idx_clicks_time ON click_events(clicked_at);
     """)
     conn.commit()
+
 
 def _create_mysql_tables(cur):
     cur.execute("""
