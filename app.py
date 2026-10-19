@@ -25,7 +25,6 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
 
 initialize_database(Config)
 
-
 def auto_migrate():
     try:
         if get_engine() == "mysql":
@@ -65,6 +64,9 @@ def auto_migrate():
             cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
         cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
 
+        if link_cols and "password_plain" not in link_cols:
+            cur.execute("ALTER TABLE links ADD COLUMN password_plain TEXT NULL;")
+
         cur.execute("PRAGMA table_info(campaigns);")
         camp_cols = [r[1] for r in cur.fetchall()]
         if camp_cols and "user_id" not in camp_cols:
@@ -84,7 +86,6 @@ def auto_migrate():
     except Exception as e:
         print("Auto-migration notice:", e)
 
-
 auto_migrate()
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -96,7 +97,7 @@ app.teardown_appcontext(close_db)
 LINK_SELECT = """
     SELECT l.id, l.title, l.original_url, l.short_code, l.custom_alias,
            l.created_at, l.expires_at, l.click_limit, l.click_count,
-           l.password_hash, l.campaign_id, l.user_id,
+           l.password_hash, l.password_plain, l.campaign_id, l.user_id,
            c.name AS campaign_name, c.tag AS campaign_tag,
            CASE WHEN l.status = 'active' AND l.expires_at IS NOT NULL
                      AND l.expires_at < CURRENT_TIMESTAMP
@@ -104,10 +105,8 @@ LINK_SELECT = """
     FROM links l LEFT JOIN campaigns c ON c.id = l.campaign_id
 """
 
-
 def iso(val):
     return val.isoformat(timespec="seconds") if isinstance(val, datetime) else val
-
 
 def short_url_for(code):
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
@@ -118,7 +117,6 @@ def short_url_for(code):
         except Exception:
             base = "http://localhost:5000"
     return f"{base}/{code}"
-
 
 def row_to_link(row):
     return {
@@ -133,13 +131,13 @@ def row_to_link(row):
         "click_limit": row["click_limit"],
         "click_count": max(0, row["click_count"]),
         "has_password": bool(row["password_hash"]),
+        "password": row.get("password_plain") or "",
         "status": row["status"],
         "campaign_id": row["campaign_id"],
         "campaign_name": row["campaign_name"],
         "campaign_tag": row["campaign_tag"],
         "user_id": row.get("user_id"),
     }
-
 
 def get_current_user():
     uid = session.get("user_id")
@@ -152,7 +150,6 @@ def get_current_user():
         raise ApiError(401, "unauthorized", "Session invalid. Please sign in again.")
     return user
 
-
 def get_user_link_or_404(link_id, user_id):
     row = query_one(f"{LINK_SELECT} WHERE l.id = %s", (link_id,))
     if not row:
@@ -161,13 +158,11 @@ def get_user_link_or_404(link_id, user_id):
         raise ApiError(403, "forbidden", "You do not have permission to access or modify this link.")
     return row
 
-
 def json_body():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         raise ApiError(400, "bad_request", "Expected valid JSON request body.")
     return payload
-
 
 def detect_country(req):
     ip = get_client_ip(req)
@@ -195,10 +190,8 @@ def detect_country(req):
 
     return "Global / Direct"
 
-
 def _user_email(username):
     return username if "@" in username else f"{username.lower()}@linkpulse.io"
-
 
 def _session_login(user):
     session["authenticated"] = True
@@ -207,18 +200,15 @@ def _session_login(user):
     session["user_role"] = user["role"]
     session["user_country"] = user["country"]
 
-
 @app.errorhandler(ApiError)
 def handle_api_error(e):
     return jsonify({"error": {"code": e.code, "message": e.message}}), e.status
-
 
 @app.errorhandler(404)
 def handle_404(e):
     if request.path.startswith("/api/"):
         return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
     return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
-
 
 @app.errorhandler(Exception)
 def handle_all_exceptions(e):
@@ -238,13 +228,11 @@ def handle_all_exceptions(e):
         mimetype="text/html"
     )
 
-
 @app.route("/login", methods=["GET"])
 def serve_login():
     if session.get("authenticated"):
         return redirect("/")
     return send_from_directory(FRONTEND_DIR, "login.html")
-
 
 @app.post("/api/login")
 def api_login():
@@ -289,7 +277,6 @@ def api_login():
         })
 
     raise ApiError(401, "unauthorized", "Invalid username or password.")
-
 
 @app.post("/api/register")
 def api_register():
@@ -336,7 +323,6 @@ def api_register():
         }
     }), 201
 
-
 @app.post("/api/auth/google")
 def api_google_auth():
     data = json_body()
@@ -378,12 +364,10 @@ def api_google_auth():
         }
     })
 
-
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
     return redirect("/login")
-
 
 @app.route("/api/account", methods=["GET", "PATCH"])
 def account_settings():
@@ -426,28 +410,23 @@ def account_settings():
         }
     })
 
-
 @app.get("/")
 def serve_index():
     if not session.get("authenticated"):
         return redirect("/login")
     return send_from_directory(FRONTEND_DIR, "index.html")
 
-
 @app.get("/style.css")
 def serve_css():
     return send_from_directory(FRONTEND_DIR, "style.css", mimetype="text/css")
-
 
 @app.get("/Group_Logo.png")
 def serve_group_logo():
     return send_from_directory(FRONTEND_DIR, "Group_Logo.png")
 
-
 @app.get("/favicon.ico")
 def serve_favicon():
     return Response(status=204)
-
 
 @app.get("/api/links")
 def list_links():
@@ -461,7 +440,6 @@ def list_links():
         params.extend([pattern, pattern, pattern])
     sql += " ORDER BY l.created_at DESC"
     return jsonify({"data": [row_to_link(r) for r in query_all(sql, params)]})
-
 
 @app.post("/api/links")
 def create_link():
@@ -497,8 +475,9 @@ def create_link():
     else:
         click_limit = None
 
-    password = data.get("password")
-    pwd_hash = generate_password_hash(password.strip()) if password and len(password.strip()) >= 3 else None
+    password = (data.get("password") or "").strip()
+    pwd_hash = generate_password_hash(password) if password and len(password) >= 3 else None
+    plain_pwd = password if password and len(password) >= 3 else None
 
     campaign_id = data.get("campaign_id") or None
     if campaign_id:
@@ -512,15 +491,14 @@ def create_link():
     db = get_db()
     cur = db.cursor()
     cur.execute("""
-        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, campaign_id, user_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, campaign_id, user["id"]))
+        INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, password_plain, campaign_id, user_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, plain_pwd, campaign_id, user["id"]))
 
     link_id = cur.lastrowid
     db.commit()
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))}), 201
-
 
 @app.patch("/api/links/<int:link_id>")
 def update_link(link_id):
@@ -534,6 +512,7 @@ def update_link(link_id):
     expires_at = current["expires_at"]
     campaign_id = current["campaign_id"]
     pwd_hash = current["password_hash"]
+    plain_pwd = current.get("password_plain")
 
     if "title" in data:
         t = str(data.get("title") or "").strip()
@@ -563,25 +542,27 @@ def update_link(link_id):
 
     if "clear_password" in data and data["clear_password"]:
         pwd_hash = None
+        plain_pwd = None
     elif "password" in data:
         pw = str(data.get("password") or "").strip()
         if pw:
             if len(pw) < 3:
                 raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
             pwd_hash = generate_password_hash(pw)
+            plain_pwd = pw
         elif data.get("password") is None or data.get("password") == "":
             pwd_hash = None
+            plain_pwd = None
 
     db = get_db()
     db.cursor().execute("""
         UPDATE links 
-        SET title = %s, original_url = %s, click_limit = %s, expires_at = %s, campaign_id = %s, password_hash = %s
+        SET title = %s, original_url = %s, click_limit = %s, expires_at = %s, campaign_id = %s, password_hash = %s, password_plain = %s
         WHERE id = %s AND user_id = %s
-    """, (title, destination, click_limit, expires_at, campaign_id, pwd_hash, link_id, user["id"]))
+    """, (title, destination, click_limit, expires_at, campaign_id, pwd_hash, plain_pwd, link_id, user["id"]))
     db.commit()
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
-
 
 @app.patch("/api/links/<int:link_id>/status")
 def toggle_status(link_id):
@@ -596,7 +577,6 @@ def toggle_status(link_id):
     db.commit()
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
-
 @app.delete("/api/links/<int:link_id>")
 def delete_link(link_id):
     user = get_current_user()
@@ -605,7 +585,6 @@ def delete_link(link_id):
     db.cursor().execute("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
-
 
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
@@ -636,7 +615,6 @@ def simulate_click(link_id):
     db.commit()
     return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
 
-
 @app.get("/api/campaigns")
 def list_campaigns():
     user = get_current_user()
@@ -661,7 +639,6 @@ def list_campaigns():
         clean_rows.append(item)
 
     return jsonify({"data": clean_rows})
-
 
 @app.post("/api/campaigns")
 def create_campaign():
@@ -695,7 +672,6 @@ def create_campaign():
 
     return jsonify({"data": created}), 201
 
-
 @app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
 def update_campaign(campaign_id):
     user = get_current_user()
@@ -712,7 +688,6 @@ def update_campaign(campaign_id):
     db.commit()
     return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
 
-
 @app.delete("/api/campaigns/<int:campaign_id>")
 def delete_campaign(campaign_id):
     user = get_current_user()
@@ -724,7 +699,6 @@ def delete_campaign(campaign_id):
     db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
-
 
 @app.get("/api/analytics/summary")
 def analytics_summary():
@@ -751,7 +725,6 @@ def analytics_summary():
         "unique_visitors": max(0, uniques["total_uniques"] or 0) if uniques else 0,
         "total_campaigns": max(0, camps["total_campaigns"] or 0) if camps else 0,
     }})
-
 
 @app.get("/api/analytics/clicks")
 def analytics_clicks():
@@ -780,7 +753,6 @@ def analytics_clicks():
     ]
 
     return jsonify({"data": series})
-
 
 @app.get("/api/analytics/breakdown")
 def analytics_breakdown():
@@ -821,7 +793,6 @@ def analytics_breakdown():
         "devices": present(devices),
         "countries": present(countries)
     }})
-
 
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
@@ -944,7 +915,6 @@ def redirect_engine(short_code):
 
     return redirect(row["original_url"], code=303 if request.method == "POST" else 302)
 
-
 @app.route("/api/links/export", methods=["GET"])
 def export_csv():
     user = get_current_user()
@@ -963,7 +933,6 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=linkpulse-export-{datetime.now():%Y%m%d}.csv"}
     )
-
 
 @app.route("/api/links/import", methods=["POST"])
 def import_csv():
@@ -1019,7 +988,6 @@ def import_csv():
     db.commit()
     return jsonify({"data": {"imported": imported, "failed": failed, "errors": errors[:20]}})
 
-
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
     user = get_current_user()
@@ -1044,7 +1012,6 @@ def get_campaign_details(campaign_id):
             "all_links": all_links
         }
     })
-
 
 @app.route("/api/campaigns/<int:campaign_id>/assign-link", methods=["POST"])
 def assign_campaign_link(campaign_id):
