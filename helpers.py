@@ -10,7 +10,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{3,35}$")
-CODE_ALPHABET = string.ascii_letters + string.digits
+CODE_CHARS = string.ascii_letters + string.digits
 
 RESERVED_CODES = {
     "api", "static", "assets", "style.css", "favicon.ico", "robots.txt",
@@ -30,12 +30,31 @@ _BOT_SIGNATURES = (
     "googlebot", "bingbot", "duckduckbot", "twitterbot", "postman"
 )
 
+_BROWSER_RULES = (
+    ("Edge", "edg/"),
+    ("Opera", "opr/"),
+    ("Samsung Internet", "samsungbrowser/"),
+    ("Firefox", "firefox/"),
+    ("Chrome", "chrome/"),
+    ("Safari", "safari/")
+)
+
+_DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%Y-%m-%dT%H:%M",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d %H:%M:%S"
+)
+
+
 class ApiError(Exception):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
+
 
 def get_client_ip(req) -> str:
     cf_ip = req.headers.get("CF-Connecting-IP")
@@ -48,43 +67,34 @@ def get_client_ip(req) -> str:
 
     return (req.remote_addr or "127.0.0.1").strip()
 
+
+def _is_reserved_network(addr) -> bool:
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_reserved
+        or addr.is_link_local
+        or addr.is_unspecified
+    )
+
+
 def is_private_or_reserved_ip(hostname: str) -> bool:
-    clean_host = hostname.strip("[]")
+    host = hostname.strip("[]")
     
-    if clean_host.isdigit():
+    if host.isdigit():
         try:
-            ip = ipaddress.IPv4Address(int(clean_host))
-            return (
-                ip.is_private
-                or ip.is_loopback
-                or ip.is_reserved
-                or ip.is_link_local
-                or ip.is_unspecified
-            )
+            return _is_reserved_network(ipaddress.IPv4Address(int(host)))
         except ValueError:
             return False
 
     try:
-        ip = ipaddress.ip_address(clean_host)
+        ip = ipaddress.ip_address(host)
         if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-            mapped = ip.ipv4_mapped
-            return (
-                mapped.is_private
-                or mapped.is_loopback
-                or mapped.is_reserved
-                or mapped.is_link_local
-                or mapped.is_unspecified
-            )
-
-        return (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_reserved
-            or ip.is_link_local
-            or ip.is_unspecified
-        )
+            return _is_reserved_network(ip.ipv4_mapped)
+        return _is_reserved_network(ip)
     except ValueError:
         return False
+
 
 def validate_destination(raw_url: str) -> str:
     if not isinstance(raw_url, str) or not raw_url.strip():
@@ -93,9 +103,9 @@ def validate_destination(raw_url: str) -> str:
     url = raw_url.strip()
 
     if url.startswith("//"):
-        url = "https:" + url
+        url = f"https:{url}"
     elif not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
-        url = "https://" + url
+        url = f"https://{url}"
 
     if len(url) > 2048:
         raise ApiError(400, "invalid_url", "Destination URL cannot exceed 2048 characters.")
@@ -114,12 +124,12 @@ def validate_destination(raw_url: str) -> str:
     if not parsed.hostname:
         raise ApiError(400, "invalid_url", "Destination URL must include a valid hostname.")
 
-    host_lower = parsed.hostname.lower().rstrip(".")
+    host = parsed.hostname.lower().rstrip(".")
 
-    if host_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or is_private_or_reserved_ip(host_lower):
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or is_private_or_reserved_ip(host):
         raise ApiError(400, "security_violation", "Redirecting to localhost or private subnets is prohibited.")
 
-    if host_lower in BLOCKED_DOMAINS:
+    if host in BLOCKED_DOMAINS:
         raise ApiError(400, "security_violation", "Domain is flagged on the security blocklist.")
 
     if "@" in (parsed.netloc or ""):
@@ -127,18 +137,20 @@ def validate_destination(raw_url: str) -> str:
 
     return url
 
+
 def validate_alias(alias: str) -> str:
     if not alias or not isinstance(alias, str):
         raise ApiError(400, "invalid_alias", "Custom alias cannot be empty.")
         
-    clean_alias = alias.strip()
-    if not ALIAS_RE.match(clean_alias):
+    slug = alias.strip()
+    if not ALIAS_RE.match(slug):
         raise ApiError(400, "invalid_alias", "Alias must be 3-35 alphanumeric characters, hyphens or underscores.")
         
-    if clean_alias.lower() in RESERVED_CODES:
-        raise ApiError(400, "invalid_alias", f"The alias '{clean_alias}' is reserved by the system.")
+    if slug.lower() in RESERVED_CODES:
+        raise ApiError(400, "invalid_alias", f"The alias '{slug}' is reserved by the system.")
         
-    return clean_alias
+    return slug
+
 
 def parse_expires_at(value, allow_past=False):
     if not value:
@@ -147,11 +159,11 @@ def parse_expires_at(value, allow_past=False):
     if isinstance(value, datetime):
         dt = value
     elif isinstance(value, str):
-        val_str = value.strip().rstrip("Z")
+        raw = value.strip().rstrip("Z")
         dt = None
-        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        for fmt in _DATE_FORMATS:
             try:
-                dt = datetime.strptime(val_str, fmt)
+                dt = datetime.strptime(raw, fmt)
                 break
             except ValueError:
                 continue
@@ -168,20 +180,26 @@ def parse_expires_at(value, allow_past=False):
 
     return dt
 
+
 def generate_short_code(length=7) -> str:
-    return "".join(secrets.choice(CODE_ALPHABET) for _ in range(length))
+    return "".join(secrets.choice(CODE_CHARS) for _ in range(length))
+
 
 def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:60]
+
 
 def title_from_url(url: str) -> str:
     try:
         host = urlparse(url).hostname or ""
     except Exception:
         host = ""
+
     if host.startswith("www."):
         host = host[4:]
+
     return (f"{host} Link" if host else "New Short Link")[:160]
+
 
 def sanitize_referrer(referrer: str):
     if not referrer:
@@ -194,33 +212,30 @@ def sanitize_referrer(referrer: str):
         pass
     return None
 
+
 def anonymize_ip(ip: str, secret: str) -> str:
-    clean_ip = (ip or "unknown").strip()
-    return hashlib.sha256(f"{secret}|linkpulse|{clean_ip}".encode("utf-8")).hexdigest()[:24]
+    client_ip = (ip or "unknown").strip()
+    return hashlib.sha256(f"{secret}|linkpulse|{client_ip}".encode("utf-8")).hexdigest()[:24]
+
 
 def classify_user_agent(ua_raw: str):
     if not ua_raw or not ua_raw.strip():
         return "desktop", "Direct / Email", False
 
-    low = ua_raw.lower()
-    is_bot = any(sig in low for sig in _BOT_SIGNATURES)
+    ua = ua_raw.lower()
+    is_bot = any(sig in ua for sig in _BOT_SIGNATURES)
 
-    browser = "Other"
-    for name, token in [
-        ("Edge", "edg/"), ("Opera", "opr/"), ("Samsung Internet", "samsungbrowser/"),
-        ("Firefox", "firefox/"), ("Chrome", "chrome/"), ("Safari", "safari/")
-    ]:
-        if token in low:
-            browser = name
-            break
+    browser = next((name for name, token in _BROWSER_RULES if token in ua), "Other")
 
     if is_bot:
         return "bot", "Search Engine / Bot", True
-    if "ipad" in low or "tablet" in low:
+    if "ipad" in ua or "tablet" in ua:
         return "tablet", browser, False
-    if "mobi" in low or "iphone" in low or "android" in low:
+    if "mobi" in ua or "iphone" in ua or "android" in ua:
         return "mobile", browser, False
+
     return "desktop", browser, False
+
 
 class RateLimiter:
     def __init__(self):
@@ -233,8 +248,8 @@ class RateLimiter:
         with self._lock:
             if now - self._last_cleanup > 300:
                 self._hits = {
-                    k: b for k, b in self._hits.items()
-                    if b and b[-1] > now - window
+                    k: bucket for k, bucket in self._hits.items()
+                    if bucket and bucket[-1] > now - window
                 }
                 self._last_cleanup = now
 
