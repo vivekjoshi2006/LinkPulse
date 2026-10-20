@@ -1452,6 +1452,7 @@
         renderBarRows(breakdown?.sources, 'sourceRows', 'grad-azure', 'No traffic referrers logged yet.');
         renderBarRows(breakdown?.devices, 'deviceRows', 'grad-violet', 'No device telemetry logged yet.');
         renderBarRows(breakdown?.countries, 'countryRows', 'grad-emerald', 'No geographic data logged yet.');
+        renderTopLinksCard();
       } catch (err) {
         console.error('Dashboard error:', err);
       }
@@ -1485,6 +1486,7 @@
         const data = await api('/api/links');
         cachedLinks = Array.isArray(data) ? data : [];
         renderLinks(filteredLinks());
+        renderTopLinksCard(); 
 
         const activeLink = cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
         if (cachedLinks.length > 0) {
@@ -1558,6 +1560,57 @@
 
     function renderLinks(links) {
       if ($('linksTbody')) $('linksTbody').innerHTML = buildLinkRows(links, false);
+
+       function renderTopLinksCard() {
+      const container = $('topLinksList');
+      if (!container) return;
+
+      try {
+        const activeLinks = (cachedLinks || []).filter(l => (Number(l.click_count) || 0) > 0);
+        activeLinks.sort((a, b) => (Number(b.click_count) || 0) - (Number(a.click_count) || 0));
+
+        const top = activeLinks.slice(0, 3);
+
+        if (!top.length) {
+          container.innerHTML = `
+            <div class="empty-top-links">
+              <span style="font-size: 1.6rem;">🏆</span>
+              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No active clicks yet</p>
+              <span style="font-size: 0.74rem; color: var(--text-muted);">Simulate clicks in Manage Links to see rankings.</span>
+            </div>`;
+          if ($('topPerformerNote')) {
+            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting first redirect event across your links.</span>`;
+          }
+          return;
+        }
+
+        const medals = ['🥇', '🥈', '🥉'];
+        const rankBorders = ['border-gold', 'border-silver', 'border-bronze'];
+
+        container.innerHTML = top.map((l, idx) => `
+          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="inspectLink(cachedLinks.find(x => x.id === ${l.id}))" title="Click to inspect this link">
+            <div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
+            <div class="top-link-meta-box">
+              <strong class="top-link-name">${escapeHTML(l.title || 'Untitled Link')}</strong>
+              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code)}</span>
+            </div>
+            <div class="top-link-right">
+              <span class="top-link-count">${Number(l.click_count || 0).toLocaleString()} <em>clicks</em></span>
+              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(l.short_url)}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
+            </div>
+          </div>
+        `).join('');
+
+        if ($('topPerformerNote')) {
+          const leader = top[0];
+          const totalClicks = cachedLinks.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
+          const sharePct = totalClicks > 0 ? Math.round(((leader.click_count || 0) / totalClicks) * 100) : 0;
+          $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
+        }
+      } catch (err) {
+        console.warn("Leaderboard error:", err);
+      }
+    }
 
       const activeTbody = $('activeLinksTbody');
       if (activeTbody) {
