@@ -203,11 +203,10 @@
         <div class="header-left">
           <div class="header-tag" id="pageTag">Telemetry Workspace</div>
           <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
-          <p class="header-subtitle" id="pageSub">Real-time edge redirects, atomic caps, SSRF protection & device
-            intelligence.</p>
+          <p class="header-subtitle" id="pageSub">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
         </div>
         <div class="header-actions" id="headerActions">
-          <button class="btn-glass" id="exportCsvBtn">
+          <button class="btn-glass-light" id="exportCsvBtn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
@@ -216,7 +215,7 @@
             <span>Export CSV</span>
           </button>
           <input type="file" id="csvFileInput" accept=".csv" hidden />
-          <button class="btn-glass" id="importCsvBtn">
+          <button class="btn-glass-light" id="importCsvBtn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
@@ -267,73 +266,39 @@
           <button class="btn-gradient" id="quickShortenBtn"><span>Instant Shorten</span></button>
         </div>
 
-        <div class="dashboard-split">
-          <div class="glass-container chart-box">
-            <div class="box-head-flex">
-              <div>
-                <span class="section-tag-soft">Activity Dynamics</span>
-                <h3 class="box-title">Click & Redirect Volume</h3>
-                <p class="box-sub">Rolling 7-day timeline (Yesterday, Today, and Upcoming).</p>
-              </div>
-              <span class="chip-accent">Live</span>
+        <div class="glass-container chart-box" style="margin-bottom: 1.5rem;">
+          <div class="box-head-flex">
+            <div>
+              <span class="section-tag-soft">Activity Dynamics</span>
+              <h3 class="box-title">Click & Redirect Volume</h3>
+              <p class="box-sub">Rolling 7-day timeline (Yesterday, Today, and Upcoming).</p>
             </div>
-
-            <div class="chart-stage" id="chartStage">
-              <div class="chart-tooltip" id="chartTooltip">
-                <span class="tooltip-date" id="ttDate">--</span>
-                <span class="tooltip-val" id="ttClicks">0 clicks</span>
-              </div>
-              <svg id="trendSvg" viewBox="0 0 700 230" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.38" />
-                    <stop offset="100%" stop-color="#a855f7" stop-opacity="0.0" />
-                  </linearGradient>
-                  <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#818cf8" />
-                    <stop offset="100%" stop-color="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                <g id="gridLinesGroup"></g>
-                <path id="chartAreaPath" fill="url(#areaGlow)" d=""></path>
-                <path id="chartLinePath" fill="none" stroke="url(#barGlow)" stroke-width="3.5" stroke-linecap="round"
-                  stroke-linejoin="round" d=""></path>
-                <g id="dotsGroup"></g>
-              </svg>
-              <div class="chart-labels-row" id="chartDateRow"></div>
-            </div>
+            <span class="chip-accent">Live</span>
           </div>
 
-          <div class="glass-container spotlight-box">
-            <div class="box-head-flex">
-              <div>
-                <span class="section-tag-soft">Live Spotlight</span>
-                <h3 class="box-title">Active Short Link</h3>
-              </div>
-              <span class="chip-active">Realtime</span>
+          <div class="chart-stage" id="chartStage">
+            <div class="chart-tooltip" id="chartTooltip">
+              <span class="tooltip-date" id="ttDate">--</span>
+              <span class="tooltip-val" id="ttClicks">0 clicks</span>
             </div>
-            <div class="spotlight-card-preview">
-              <div class="spotlight-card-inner">
-                <div class="mock-browser-header"><span></span><span></span><span></span></div>
-                <div class="spotlight-badge">Instant Routing Ready</div>
-                <h4 class="spotlight-title" id="spotlightTitle">Select or create a link</h4>
-                <p class="spotlight-dest" id="spotlightDest">https://example.com</p>
-              </div>
-            </div>
-            <div class="spotlight-field-wrap">
-              <div class="spotlight-copy-group">
-                <input type="text" id="spotlightShortUrl" class="field-slug-input" readonly
-                  value="https://linkpulse.io/latest" />
-                <button class="btn-spotlight-copy" id="spotlightCopyBtn">Copy</button>
-              </div>
-            </div>
-            <div class="spotlight-qr-row">
-              <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
-              <div class="spotlight-qr-meta">
-                <strong>Crisp Vector QR</strong>
-                <button class="text-link-btn" id="spotlightDownloadQr">Download QR PNG ↓</button>
-              </div>
-            </div>
+            <svg id="trendSvg" viewBox="0 0 700 230" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#6366f1" stop-opacity="0.38" />
+                  <stop offset="100%" stop-color="#a855f7" stop-opacity="0.0" />
+                </linearGradient>
+                <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#818cf8" />
+                  <stop offset="100%" stop-color="#3b82f6" />
+                </linearGradient>
+              </defs>
+              <g id="gridLinesGroup"></g>
+              <path id="chartAreaPath" fill="url(#areaGlow)" d=""></path>
+              <path id="chartLinePath" fill="none" stroke="url(#barGlow)" stroke-width="3.5" stroke-linecap="round"
+                stroke-linejoin="round" d=""></path>
+              <g id="dotsGroup"></g>
+            </svg>
+            <div class="chart-labels-row" id="chartDateRow"></div>
           </div>
         </div>
 
@@ -361,71 +326,165 @@
 
       <!-- Manage Links -->
       <section class="tab-pane" id="tab-manage-links">
-        <div class="glass-container table-wrapper-box">
-          <div class="table-top-bar">
-            <div>
-              <span class="section-tag-soft">Inventory</span>
-              <h3 class="box-title">Managed Short Links</h3>
+        <div class="manage-subtabs-nav">
+          <button class="manage-subtab-btn active" id="btnSubtabActiveLinks" data-subtab="subtab-active-links" title="Active Short Links & QR Code Downloader">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>Active Short Links</span>
+          </button>
+          <button class="manage-subtab-btn" id="btnSubtabAllLinks" data-subtab="subtab-all-links" title="All Managed Short Links">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span>All Managed Links</span>
+          </button>
+        </div>
+
+        <!-- 1. Active Short Links Tab Pane -->
+        <div class="manage-subpane active" id="subtab-active-links">
+          <div class="active-links-split" style="margin-bottom: 1.5rem;">
+            <!-- Active Short Links Spotlight Card -->
+            <div class="glass-container spotlight-box" id="activeShortLinksBox">
+              <div class="box-head-flex">
+                <div>
+                  <span class="section-tag-soft">Live Spotlight</span>
+                  <h3 class="box-title">Active Short Link</h3>
+                </div>
+                <span class="chip-active">Realtime</span>
+              </div>
+              <div class="spotlight-card-preview">
+                <div class="spotlight-card-inner">
+                  <div class="mock-browser-header"><span></span><span></span><span></span></div>
+                  <div class="spotlight-badge">Instant Routing Ready</div>
+                  <h4 class="spotlight-title" id="spotlightTitle">Select or create a link</h4>
+                  <p class="spotlight-dest" id="spotlightDest">https://example.com</p>
+                </div>
+              </div>
+              <div class="spotlight-field-wrap">
+                <div class="spotlight-copy-group">
+                  <input type="text" id="spotlightShortUrl" class="field-slug-input" readonly
+                    value="https://linkpulse.io/latest" />
+                  <button class="btn-spotlight-copy" id="spotlightCopyBtn">Copy</button>
+                </div>
+              </div>
+              <div class="spotlight-qr-row">
+                <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
+                <div class="spotlight-qr-meta">
+                  <strong>Crisp Vector QR</strong>
+                  <button class="text-link-btn" id="spotlightDownloadQr">Download QR PNG ↓</button>
+                </div>
+              </div>
             </div>
-            <div class="table-filters-row">
-              <input type="text" id="searchInput" class="search-glass-field"
-                placeholder="Search by title, code, url..." />
-              <select id="statusFilter" class="select-glass-field">
-                <option value="all">All Statuses</option>
-                <option value="active">Active Only</option>
-                <option value="disabled">Paused Only</option>
-              </select>
+
+            <!-- Columns Graph -->
+            <div class="glass-container chart-box">
+              <div class="box-head-flex">
+                <div>
+                  <span class="section-tag-soft">Activity Dynamics</span>
+                  <h3 class="box-title">Click & Redirect Volume</h3>
+                  <p class="box-sub">Rolling 7-day timeline breakdown in bar columns.</p>
+                </div>
+                <span class="chip-accent">Live</span>
+              </div>
+
+              <div class="chart-stage" id="chartStage2">
+                <div class="chart-tooltip" id="chartTooltip2">
+                  <span class="tooltip-date" id="ttDate2">--</span>
+                  <span class="tooltip-val" id="ttClicks2">0 clicks</span>
+                </div>
+                <svg id="trendSvg2" viewBox="0 0 700 230" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="barGlow2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#818cf8" />
+                      <stop offset="100%" stop-color="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                  <g id="gridLinesGroup2"></g>
+                  <g id="barsGroup2"></g>
+                </svg>
+                <div class="chart-labels-row" id="chartDateRow2"></div>
+              </div>
             </div>
           </div>
 
-          <div class="responsive-table-scroll">
-            <table class="glass-table">
-              <thead>
-                <tr>
-                  <th>Destination & Meta</th>
-                  <th>Short Code</th>
-                  <th>Clicks</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="linksTbody">
-                <tr>
-                  <td colspan="6" class="table-empty">Loading your links...</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="glass-container table-wrapper-box">
+            <div class="table-top-bar">
+              <div>
+                <span class="section-tag-soft">Live Routing</span>
+                <h3 class="box-title">Active Short Links</h3>
+              </div>
+              <div class="table-filters-row">
+                <input type="text" id="searchActiveInput" class="search-glass-field"
+                  placeholder="Search active short links..." />
+              </div>
+            </div>
+
+            <div class="responsive-table-scroll">
+              <table class="glass-table">
+                <thead>
+                  <tr>
+                    <th>Destination & Meta</th>
+                    <th>Short Code</th>
+                    <th>Clicks</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="activeLinksTbody">
+                  <tr>
+                    <td colspan="6" class="table-empty">Loading active short links...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <!-- Columns Graph at Bottom of Manage Links -->
-        <div class="glass-container chart-box" style="margin-top: 1.5rem;">
-          <div class="box-head-flex">
-            <div>
-              <span class="section-tag-soft">Activity Dynamics</span>
-              <h3 class="box-title">Click & Redirect Volume</h3>
-              <p class="box-sub">Rolling 7-day timeline breakdown in bar columns.</p>
+        <!-- 2. All Managed Links Tab Pane -->
+        <div class="manage-subpane" id="subtab-all-links">
+          <div class="glass-container table-wrapper-box">
+            <div class="table-top-bar">
+              <div>
+                <span class="section-tag-soft">Inventory</span>
+                <h3 class="box-title">All Managed Links</h3>
+              </div>
+              <div class="table-filters-row">
+                <input type="text" id="searchInput" class="search-glass-field"
+                  placeholder="Search by title, code, url..." />
+                <select id="statusFilter" class="select-glass-field">
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="disabled">Paused Only</option>
+                </select>
+              </div>
             </div>
-            <span class="chip-accent">Live</span>
-          </div>
 
-          <div class="chart-stage" id="chartStage2">
-            <div class="chart-tooltip" id="chartTooltip2">
-              <span class="tooltip-date" id="ttDate2">--</span>
-              <span class="tooltip-val" id="ttClicks2">0 clicks</span>
+            <div class="responsive-table-scroll">
+              <table class="glass-table">
+                <thead>
+                  <tr>
+                    <th>Destination & Meta</th>
+                    <th>Short Code</th>
+                    <th>Clicks</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="linksTbody">
+                  <tr>
+                    <td colspan="6" class="table-empty">Loading your links...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <svg id="trendSvg2" viewBox="0 0 700 230" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="barGlow2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#818cf8" />
-                  <stop offset="100%" stop-color="#3b82f6" />
-                </linearGradient>
-              </defs>
-              <g id="gridLinesGroup2"></g>
-              <g id="barsGroup2"></g>
-            </svg>
-            <div class="chart-labels-row" id="chartDateRow2"></div>
           </div>
         </div>
       </section>
@@ -470,6 +529,16 @@
             <div>
               <span class="section-tag-soft">Pick a Link</span>
               <h3 class="box-title">Click Any Row to Inspect Live Telemetry</h3>
+            </div>
+            <div>
+              <button class="btn-glass-light" id="exportCsvBtnAnalytics" title="Export all short links to CSV">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Export CSV</span>
+              </button>
             </div>
           </div>
 
@@ -519,58 +588,58 @@
 
       <!-- About Us -->
       <section class="tab-pane" id="tab-about">
-        <div class="hackathon-tag-pill">
-          <span class="pulse-emerald"></span>
-          <span>Official Hackathon Innovation Project</span>
-        </div>
-
-        <div style="width: 100%; margin: 1.25rem 0; overflow: hidden; border-radius: 20px;">
-          <img src="/Group_Logo.png" alt="Group Logo"
-            style="width: 100%; max-height: 200px; object-fit: cover; object-position: center; display: block; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);" />
-        </div>
-
-        <h2 class="about-team-heading">
-          Engineered by <span class="team-gradient-txt">Code with Caos</span>
-        </h2>
-        <p
-          style="font-size: 1.05rem; color: var(--text-body); max-width: 660px; margin: 0 auto 1.5rem; line-height: 1.6;">
-          Built with passion as an innovative Hackathon project to deliver real-time edge link governance, sub-40ms
-          atomic redirection, and privacy-shielded telemetry without slowing users down.
-        </p>
-
-        <div class="about-divider"></div>
-
-        <h3 class="members-title">Project Contributors</h3>
-
-        <div class="members-grid">
-          <div class="member-glass-card">
-            <div class="member-avatar av-1">DM</div>
-            <div class="member-meta">
-              <strong>Divyanshu Mehta</strong>
-            </div>
+        <div class="glass-container about-hero-box">
+          <div class="hackathon-tag-pill">
+            <span class="pulse-emerald"></span>
+            <span>Official Hackathon Innovation Project</span>
           </div>
-          <div class="member-glass-card">
-            <div class="member-avatar av-2">KP</div>
-            <div class="member-meta">
-              <strong>Kamal Pandey</strong>
-            </div>
+
+          <div style="width: 100%; margin: 1rem 0 0.5rem 0; overflow: hidden; border-radius: 20px;">
+            <img src="/Group_Logo.png" alt="Group Logo"
+              style="width: 100%; max-height: 200px; object-fit: cover; object-position: center; display: block; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);" />
           </div>
-          <div class="member-glass-card">
-            <div class="member-avatar av-3">AP</div>
-            <div class="member-meta">
-              <strong>Ashish Pandey</strong>
+
+          <h2 class="about-team-heading">
+            Engineered by <span class="team-gradient-txt">Code with Caos</span>
+          </h2>
+          <p class="about-desc-text">
+            Built with passion as an innovative Hackathon project to deliver real-time edge link governance, <span style="white-space: nowrap;">sub-40ms</span> atomic redirection, and privacy-shielded telemetry without slowing users down.
+          </p>
+
+          <div class="about-divider"></div>
+
+          <h3 class="members-title">Project Contributors</h3>
+
+          <div class="members-grid">
+            <div class="member-glass-card">
+              <div class="member-avatar av-1">DM</div>
+              <div class="member-meta">
+                <strong>Divyanshu Mehta</strong>
+              </div>
             </div>
-          </div>
-          <div class="member-glass-card">
-            <div class="member-avatar av-4">VJ</div>
-            <div class="member-meta">
-              <strong>Vivek Joshi</strong>
+            <div class="member-glass-card">
+              <div class="member-avatar av-2">KP</div>
+              <div class="member-meta">
+                <strong>Kamal Pandey</strong>
+              </div>
             </div>
-          </div>
-          <div class="member-glass-card">
-            <div class="member-avatar av-5">NT</div>
-            <div class="member-meta">
-              <strong>Neelabh Raj Singh</strong>
+            <div class="member-glass-card">
+              <div class="member-avatar av-3">AP</div>
+              <div class="member-meta">
+                <strong>Ashish Pandey</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-4">VJ</div>
+              <div class="member-meta">
+                <strong>Vivek Joshi</strong>
+              </div>
+            </div>
+            <div class="member-glass-card">
+              <div class="member-avatar av-5">NT</div>
+              <div class="member-meta">
+                <strong>Neelabh Raj Singh</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -579,7 +648,7 @@
     </main>
   </div>
 
-  <!-- Create Link -->
+  <!-- Create Link Drawer -->
   <div class="drawer-backdrop" id="linkDrawerBackdrop">
     <div class="drawer-panel" id="linkDrawer" style="max-width: 680px;">
       <div class="drawer-header">
@@ -656,7 +725,6 @@
                 </svg>
               </button>
             </div>
-            <!-- Remove Password checkbox only shown if password exists -->
             <div id="clearPasswordGroup" style="display: none; margin-top: 0.4rem;">
               <label
                 style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; font-weight: 600; color: #dc2626; cursor: pointer;">
@@ -678,7 +746,7 @@
     </div>
   </div>
 
-  <!-- Campaign Details -->
+  <!-- Campaign Details Modal -->
   <div class="drawer-backdrop" id="campaignDetailsModal">
     <div class="drawer-panel"
       style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
@@ -754,7 +822,7 @@
     </div>
   </div>
 
-  <!-- QR Code -->
+  <!-- QR Code Modal -->
   <div class="modal-overlay" id="qrModal">
     <div class="modal-glass-container">
       <button class="modal-close-cross" id="closeQrBtn">&times;</button>
@@ -784,7 +852,6 @@
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[ch]));
 
-    // Header Mapping for each tab
     const tabMeta = {
       'tab-overview': {
         tag: 'Telemetry Workspace',
@@ -871,7 +938,6 @@
         const paneId = tab.dataset.tab;
         $(paneId)?.classList.add('active');
 
-        // Titles, Tags and Action Buttons Visibility
         const meta = tabMeta[paneId] || {
           tag: 'Workspace',
           title: tab.querySelector('span')?.textContent || 'Dashboard',
@@ -884,6 +950,29 @@
         if ($('pageSub')) $('pageSub').textContent = meta.sub;
         if ($('headerActions')) {
           $('headerActions').style.display = meta.showActions ? 'flex' : 'none';
+        }
+
+        if (paneId === 'tab-manage-links') {
+          const activeLink = (selectedLinkId && cachedLinks.find(l => l.id === selectedLinkId)) ||
+            cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
+          updateSpotlight(activeLink);
+        }
+      });
+    });
+
+    document.querySelectorAll('.manage-subtab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.manage-subtab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.manage-subpane').forEach(p => p.classList.remove('active'));
+
+        btn.classList.add('active');
+        const subId = btn.dataset.subtab;
+        $(subId)?.classList.add('active');
+
+        if (subId === 'subtab-active-links') {
+          const activeLink = (selectedLinkId && cachedLinks.find(l => l.id === selectedLinkId)) ||
+            cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
+          updateSpotlight(activeLink);
         }
       });
     });
@@ -975,7 +1064,7 @@
         if (offset === -1) label = 'Yesterday';
         else if (offset === 0) label = 'Today';
         else if (offset === 1) label = 'Tomorrow';
-        else label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+        else label = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
 
         points.push({
           date: iso,
@@ -992,10 +1081,9 @@
 
       const w = 700;
       const h = 230;
-      const pad = 35;
+      const pad = 52;
       const maxVal = Math.max(...data.map(d => d.clicks), 5);
 
-      // 1. Grid Lines for Overview
       const grid = $('gridLinesGroup');
       if (grid) {
         grid.replaceChildren();
@@ -1012,7 +1100,6 @@
         }
       }
 
-      // 2. Grid Lines for Manage Links
       const grid2 = $('gridLinesGroup2');
       if (grid2) {
         grid2.replaceChildren();
@@ -1065,15 +1152,18 @@
         });
 
         if ($('chartDateRow')) {
-          $('chartDateRow').innerHTML = data.map(d => `<span>${escapeHTML(d.label)}</span>`).join('');
+          $('chartDateRow').innerHTML = points.map(pt => `
+            <span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
+              ${escapeHTML(pt.label)}
+            </span>
+          `).join('');
         }
       }
 
-      // --- Manage Links ---
       const barsGroup2 = $('barsGroup2');
       if (barsGroup2) {
         barsGroup2.replaceChildren();
-        const barW = 34;
+        const barW = 32;
 
         points.forEach(pt => {
           const barH = (h - pad) - pt.y;
@@ -1091,7 +1181,11 @@
         });
 
         if ($('chartDateRow2')) {
-          $('chartDateRow2').innerHTML = data.map(d => `<span>${escapeHTML(d.label)}</span>`).join('');
+          $('chartDateRow2').innerHTML = points.map(pt => `
+            <span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
+              ${escapeHTML(pt.label)}
+            </span>
+          `).join('');
         }
       }
     }
@@ -1144,19 +1238,17 @@
         $('inpExpiry').value = item.expires_at ? String(item.expires_at).slice(0, 10) : '';
         $('inpCampaign').value = item.campaign_id || '';
 
-        // Actual password load agar link me password set hai
         if (item.has_password) {
           $('inpPassword').value = item.password || '';
           $('inpPassword').placeholder = 'Enter new password or keep current';
-          if (clearGroup) clearGroup.style.display = 'block'; // Sirf password set hone par dikhega
+          if (clearGroup) clearGroup.style.display = 'block';
         } else {
           $('inpPassword').value = '';
           $('inpPassword').placeholder = 'Leave empty for public';
-          if (clearGroup) clearGroup.style.display = 'none'; // Password nahi hai toh hide rahega
+          if (clearGroup) clearGroup.style.display = 'none';
         }
         if (clearChk) clearChk.checked = false;
 
-        // Set matching campaign in dropdown
         const matched = cachedCampaigns.find(c => c.id === item.campaign_id);
         if ($('customCampDropdownLabel')) {
           $('customCampDropdownLabel').textContent = matched ? matched.name : 'No Campaign';
@@ -1187,7 +1279,6 @@
         });
       }
 
-      // Reset eye icon to hide password
       $('inpPassword').type = 'password';
       if ($('eyeIcon')) {
         $('eyeIcon').innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
@@ -1218,7 +1309,6 @@
       }
     });
 
-    // Eye Icon
     $('btnTogglePasswordEye')?.addEventListener('click', (e) => {
       e.preventDefault();
       const input = $('inpPassword');
@@ -1359,17 +1449,15 @@
         cachedLinks = Array.isArray(data) ? data : [];
         renderLinks(filteredLinks());
 
+        const activeLink = cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
         if (cachedLinks.length > 0) {
-          updateSpotlight(cachedLinks[0]);
+          updateSpotlight(activeLink);
           if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
-            inspectLink(cachedLinks[0]);
+            inspectLink(activeLink);
           }
         } else {
           inspectLink(null);
-          $('spotlightTitle').textContent = 'Select or create a link';
-          $('spotlightDest').textContent = 'https://example.com';
-          $('spotlightShortUrl').value = 'https://linkpulse.io/latest';
-          $('spotlightQrBox').replaceChildren();
+          updateSpotlight(null);
         }
       } catch (err) {
         console.error('Failed to load links:', err);
@@ -1379,8 +1467,8 @@
 
     function filteredLinks() {
       if (!Array.isArray(cachedLinks)) return [];
-      const query = $('searchInput').value.trim().toLowerCase();
-      const status = $('statusFilter').value;
+      const query = $('searchInput')?.value.trim().toLowerCase() || '';
+      const status = $('statusFilter')?.value || 'all';
 
       return cachedLinks.filter(l => {
         const matchesQuery = [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || '']
@@ -1407,7 +1495,6 @@
         const actionCell = isDetailsView ? '' : `
           <td style="text-align: right;">
             <div class="table-action-row">
-              <button class="action-icon-btn btn-simulate" data-action="test-click" data-id="${Number(l.id)}" title="Simulate 1 Click">⚡ Test</button>
               <button class="action-icon-btn" data-action="qr" data-id="${Number(l.id)}" title="QR Code">▦</button>
               <button class="action-icon-btn" data-action="edit" data-id="${Number(l.id)}" title="Edit Link">✎</button>
               <button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}" title="${status === 'active' ? 'Pause Link' : 'Activate Link'}">${status === 'active' ? '⏸' : '▶'}</button>
@@ -1433,7 +1520,18 @@
     }
 
     function renderLinks(links) {
-      $('linksTbody').innerHTML = buildLinkRows(links, false);
+      if ($('linksTbody')) $('linksTbody').innerHTML = buildLinkRows(links, false);
+
+      const activeTbody = $('activeLinksTbody');
+      if (activeTbody) {
+        const activeQuery = ($('searchActiveInput')?.value || '').trim().toLowerCase();
+        const activeLinks = cachedLinks.filter(l => l.status === 'active' &&
+          [l.title, l.short_code, l.custom_alias || '', l.original_url, l.campaign_name || '']
+            .some(v => String(v).toLowerCase().includes(activeQuery))
+        );
+        activeTbody.innerHTML = buildLinkRows(activeLinks, false);
+      }
+
       const analyticsBody = $('linksTbodyAnalytics');
       if (analyticsBody) {
         analyticsBody.innerHTML = buildLinkRows(links, true);
@@ -1441,17 +1539,28 @@
     }
 
     function updateSpotlight(link) {
-      if (!link) return;
-      $('spotlightTitle').textContent = link.title || 'Untitled Link';
-      $('spotlightDest').textContent = link.original_url || '';
-      $('spotlightShortUrl').value = link.short_url || '';
-      $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
-      $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code, '#spotlightQrBox');
+      if (!link) {
+        link = (selectedLinkId && cachedLinks.find(l => l.id === selectedLinkId)) ||
+          cachedLinks.find(l => l.status === 'active') || cachedLinks[0] || {
+            title: 'Select or create a link',
+            original_url: 'https://example.com',
+            short_url: 'https://linkpulse.io/latest',
+            short_code: 'latest'
+          };
+      }
+
+      if ($('spotlightTitle')) $('spotlightTitle').textContent = link.title || 'Untitled Link';
+      if ($('spotlightDest')) $('spotlightDest').textContent = link.original_url || '';
+      if ($('spotlightShortUrl')) $('spotlightShortUrl').value = link.short_url || '';
+      if ($('spotlightCopyBtn')) $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
+      if ($('spotlightDownloadQr')) $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code || 'shortlink', '#spotlightQrBox');
 
       const box = $('spotlightQrBox');
-      box.replaceChildren();
-      if (typeof QRCode !== 'undefined') {
-        new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+      if (box) {
+        box.replaceChildren();
+        if (typeof QRCode !== 'undefined') {
+          new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+        }
       }
     }
 
@@ -1478,14 +1587,25 @@
     }
 
     function downloadQr(code, containerSelector = '#qrCanvasBox') {
-      const canvas = document.querySelector(containerSelector)?.querySelector('canvas');
-      if (!canvas) {
+      const container = document.querySelector(containerSelector);
+      const canvas = container?.querySelector('canvas');
+      const img = container?.querySelector('img');
+      let dataUrl = '';
+      if (canvas && typeof canvas.toDataURL === 'function') {
+        try {
+          dataUrl = canvas.toDataURL('image/png');
+        } catch {}
+      }
+      if (!dataUrl && img?.src && img.src.startsWith('data:')) {
+        dataUrl = img.src;
+      }
+      if (!dataUrl) {
         toast('Unable to locate QR canvas.');
         return;
       }
       const anchor = document.createElement('a');
       anchor.download = `qr-${code || 'shortlink'}.png`;
-      anchor.href = canvas.toDataURL('image/png');
+      anchor.href = dataUrl;
       anchor.click();
       toast('QR PNG downloaded!');
     }
@@ -1664,7 +1784,6 @@
       $('customLinkDropdown').classList.toggle('open');
     };
 
-    // Create Short Link Campaign Dropdown
     $('customCampDropdownBtn')?.addEventListener('click', e => {
       e.stopPropagation();
       $('customCampDropdown')?.classList.toggle('open');
@@ -1720,13 +1839,11 @@
             </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
         }
 
-        // 1. Hidden Select
         if ($('inpCampaign')) {
           $('inpCampaign').innerHTML = '<option value="">No Campaign</option>' +
             cachedCampaigns.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
         }
 
-        // 2. Custom Dropdown in Create Modal
         const campMenu = $('customCampDropdownMenu');
         if (campMenu) {
           campMenu.innerHTML = '';
@@ -1810,12 +1927,17 @@
 
     $('searchInput').oninput = () => renderLinks(filteredLinks());
     $('statusFilter').onchange = () => renderLinks(filteredLinks());
+    $('searchActiveInput')?.addEventListener('input', () => renderLinks(filteredLinks()));
 
     $('exportCsvBtn').onclick = () => {
       window.location.href = '/api/links/export';
     };
 
-    $('importCsvBtn').onclick = () => $('csvFileInput').click();
+    $('exportCsvBtnAnalytics')?.addEventListener('click', () => {
+      window.location.href = '/api/links/export';
+    });
+
+    $('importCsvBtn')?.addEventListener('click', () => $('csvFileInput').click());
 
     $('csvFileInput').onchange = async e => {
       const file = e.target.files[0];
@@ -1825,11 +1947,12 @@
       fd.append('file', file);
 
       try {
+        toast('Uploading CSV and creating campaign...');
         const res = await api('/api/links/import', { method: 'POST', body: fd });
-        toast(`Imported ${res.imported} links.`);
-        await Promise.all([loadLinks(), refreshDashboard()]);
+        toast(res.message || `Created campaign "${res.campaign_name}" with ${res.imported} links!`);
+        await Promise.all([loadCampaigns(), loadLinks(), refreshDashboard()]);
       } catch (err) {
-        toast(err.message);
+        toast(err.message || 'Failed to import CSV.');
       } finally {
         e.target.value = '';
       }
