@@ -537,7 +537,7 @@ html, body {
   transition: box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-/* Metric Cards */
+/* Summary Cards */
 .stats-ribbon {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
