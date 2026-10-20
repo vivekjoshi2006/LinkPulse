@@ -2377,3 +2377,148 @@ tr.selected-row {
   color: #ea580c;
   stroke-width: 2.2;
 }
+
+/* ====================================================
+   ULTRA-CLEAN TOP PERFORMING LINKS LEADERBOARD
+   ==================================================== */
+.top-links-card {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  background: var(--glass-surface) !important;
+}
+
+.top-links-stack {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  flex: 1 !important;
+  justify-content: center !important;
+  margin: 0.9rem 0 !important;
+}
+
+/* Individual Link Row Card */
+.top-link-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0.75rem 1rem !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1.5px solid var(--glass-border-subtle) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.03) !important;
+  cursor: pointer !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none !important;
+}
+
+.top-link-item:hover {
+  background: #ffffff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.14) !important;
+  border-color: #818cf8 !important;
+}
+
+/* Rank Glow Borders */
+.top-link-item.border-gold { 
+  border-left: 4.5px solid #f59e0b !important; 
+}
+.top-link-item.border-silver { 
+  border-left: 4.5px solid #94a3b8 !important; 
+}
+.top-link-item.border-bronze { 
+  border-left: 4.5px solid #d97706 !important; 
+}
+
+/* Medal Avatar Badge */
+.top-link-badge {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.25rem !important;
+  margin-right: 0.85rem !important;
+  background: rgba(241, 245, 249, 0.9) !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Meta Text Wrap */
+.top-link-meta-box {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}
+
+.top-link-name {
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  color: var(--text-headline) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: block !important;
+}
+
+.top-link-slug {
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  color: #6366f1 !important;
+  font-family: var(--font-mono) !important;
+  display: block !important;
+}
+
+/* Right Clicks & Copy Button Group */
+.top-link-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  flex-shrink: 0 !important;
+  margin-left: 0.75rem !important;
+}
+
+.top-link-count {
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  color: #1e1b4b !important;
+  font-family: var(--font-mono) !important;
+  background: rgba(99, 102, 241, 0.09) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  padding: 0.28rem 0.65rem !important;
+  border-radius: 8px !important;
+  white-space: nowrap !important;
+}
+
+.top-link-count em {
+  font-size: 0.68rem !important;
+  font-style: normal !important;
+  color: var(--text-muted) !important;
+  font-weight: 600 !important;
+  margin-left: 2px !important;
+}
+
+/* Bottom Highlight Note */
+.top-links-footer-note {
+  font-size: 0.76rem !important;
+  font-weight: 600 !important;
+  color: #1e40af !important;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(224, 231, 255, 0.75) 100%) !important;
+  border: 1px solid rgba(199, 210, 254, 0.9) !important;
+  border-radius: 12px !important;
+  padding: 0.65rem 0.95rem !important;
+  text-align: center !important;
+  margin-top: 0.5rem !important;
+  line-height: 1.4 !important;
+}
+
+.empty-top-links {
+  text-align: center !important;
+  padding: 1.75rem 1rem !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border-radius: 14px !important;
+  border: 1.5px dashed rgba(203, 213, 225, 0.8) !important;
+}
