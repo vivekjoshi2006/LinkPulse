@@ -2314,3 +2314,65 @@ tr.selected-row {
     text-align: center !important;
   }
 }
+
+/* Light Emerald Gradient for Export CSV */
+.btn-light-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 1.25rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #ccfbf1 100%);
+  border: 1.5px solid rgba(16, 185, 129, 0.4);
+  color: #065f46;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.12);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-light-export:hover {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 50%, #99f6e4 100%);
+  border-color: #10b981;
+  color: #064e3b;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.25);
+}
+
+.btn-light-export svg {
+  color: #059669;
+  stroke-width: 2.2;
+}
+
+/* Light Azure/Sky Gradient for Import CSV */
+.btn-light-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 1.25rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #e0e7ff 100%);
+  border: 1.5px solid rgba(59, 130, 246, 0.4);
+  color: #1e40af;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.12);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-light-import:hover {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 50%, #c7d2fe 100%);
+  border-color: #3b82f6;
+  color: #1e3a8a;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(59, 130, 246, 0.25);
+}
+
+.btn-light-import svg {
+  color: #2563eb;
+  stroke-width: 2.2;
+}
