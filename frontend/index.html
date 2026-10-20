@@ -877,6 +877,29 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
+    // Global Row click handler for Top Links Card
+    window.onTopLinkClick = function(linkId) {
+      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
+      if (!link) return;
+
+      selectedLinkId = link.id;
+      inspectLink(link);
+      updateSpotlight(link);
+
+      // 1. Switch to 'Link Analytics' tab
+      const analyticsTabBtn = document.querySelector('.nav-tab[data-tab="tab-details"]');
+      if (analyticsTabBtn) {
+        analyticsTabBtn.click();
+      }
+
+      // 2. Highlight row and scroll to inspect section
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
+
+      toast(`Inspecting: ${link.title || link.short_code}`);
+    };
+    
     const $ = id => document.getElementById(id);
     window.$ = $;
 
@@ -1116,7 +1139,7 @@
       }
       return points;
     }
-    
+
     function renderTrendChart(series) {
       const data = sanitizeDailySeries(series);
       cachedChartData = data;
