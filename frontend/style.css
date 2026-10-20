@@ -648,10 +648,32 @@ html, body {
   color: var(--text-light); 
 }
 
+/* Wave Graph ki width kam ki gayi hai taaki Rankings card ko khuli jagah mile */
 .dashboard-split {
   display: grid !important;
-  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr) !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 1fr) !important;
   gap: 1.5rem !important;
+  align-items: stretch !important;
+}
+
+/* Link Name truncate na ho aur clear dikhe */
+.top-link-meta-box {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+  padding-right: 0.5rem !important;
+}
+
+.top-link-name {
+  font-size: 0.92rem !important;
+  font-weight: 800 !important;
+  color: var(--text-headline) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: block !important;
 }
 
 .chart-box,
