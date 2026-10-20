@@ -12,6 +12,7 @@ def _get_int(key: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-only-change-this-secret-before-deploying"
 
