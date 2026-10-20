@@ -23,7 +23,11 @@
       --glass-shadow: 0 25px 60px -15px rgba(79, 70, 229, 0.18);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     
     body {
       font-family: var(--font);
@@ -58,6 +62,7 @@
       gap: 0.75rem;
       margin-bottom: 1.25rem;
     }
+
     .brand-icon {
       width: 40px;
       height: 40px;
@@ -69,6 +74,7 @@
       color: #fff;
       box-shadow: 0 8px 18px rgba(79, 70, 229, 0.3);
     }
+
     .brand-title {
       font-size: 1.5rem;
       font-weight: 800;
@@ -84,6 +90,7 @@
       margin-bottom: 1.25rem;
       border: 1px solid #e2e8f0;
     }
+
     .auth-tab-btn {
       flex: 1;
       padding: 0.6rem;
@@ -96,6 +103,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
+
     .auth-tab-btn.active {
       background: #ffffff;
       color: #4f46e5;
@@ -120,11 +128,13 @@
       transition: all 0.2s ease;
       margin-bottom: 1.25rem;
     }
+
     .btn-google:hover:not(:disabled) {
       background: #f8fafc;
       border-color: #cbd5e1;
       transform: translateY(-1px);
     }
+
     .btn-google:disabled {
       opacity: 0.65;
       cursor: not-allowed;
@@ -141,12 +151,17 @@
       letter-spacing: 0.08em;
       margin-bottom: 1.25rem;
     }
-    .or-divider::before, .or-divider::after {
+
+    .or-divider::before,
+    .or-divider::after {
       content: '';
       flex: 1;
       border-bottom: 1px solid #e2e8f0;
     }
-    .or-divider span { padding: 0 0.75rem; }
+
+    .or-divider span {
+      padding: 0 0.75rem;
+    }
 
     .form-grid-two {
       display: grid;
@@ -161,6 +176,7 @@
       margin-bottom: 0.95rem;
       text-align: left;
     }
+
     .field-group label {
       font-size: 0.8rem;
       font-weight: 700;
@@ -179,6 +195,7 @@
       outline: none;
       transition: all 0.2s ease;
     }
+
     .glass-input:focus {
       border-color: #6366f1;
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
@@ -198,10 +215,12 @@
       transition: all 0.2s ease;
       margin-top: 0.35rem;
     }
+
     .btn-submit:hover:not(:disabled) {
       background: var(--grad-primary-hover);
       transform: translateY(-1px);
     }
+
     .btn-submit:disabled {
       opacity: 0.7;
       cursor: not-allowed;
