@@ -1561,55 +1561,81 @@
     function renderLinks(links) {
       if ($('linksTbody')) $('linksTbody').innerHTML = buildLinkRows(links, false);
 
-       function renderTopLinksCard() {
+      // Top Performing Links Card (Bulletproof & Safe)
+    function renderTopLinksCard() {
       const container = $('topLinksList');
-      if (!container) return;
+      if (!container) return; // Container check
 
       try {
-        const activeLinks = (cachedLinks || []).filter(l => (Number(l.click_count) || 0) > 0);
-        activeLinks.sort((a, b) => (Number(b.click_count) || 0) - (Number(a.click_count) || 0));
+        const all = Array.isArray(cachedLinks) ? [...cachedLinks] : [];
 
-        const top = activeLinks.slice(0, 3);
-
-        if (!top.length) {
+        // Agar koi link hi nahi hai workspace mein
+        if (!all.length) {
           container.innerHTML = `
             <div class="empty-top-links">
-              <span style="font-size: 1.6rem;">🏆</span>
-              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No active clicks yet</p>
-              <span style="font-size: 0.74rem; color: var(--text-muted);">Simulate clicks in Manage Links to see rankings.</span>
+              <span style="font-size: 1.6rem;">🔗</span>
+              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No links created yet</p>
+              <span style="font-size: 0.74rem; color: var(--text-muted);">Create your first short link above to see rankings.</span>
             </div>`;
           if ($('topPerformerNote')) {
-            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting first redirect event across your links.</span>`;
+            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting your first short link.</span>`;
           }
           return;
         }
 
+        // Sort: Pehle clicks ke hisaab se, fir latest ke hisaab se
+        all.sort((a, b) => {
+          const clicksDiff = (Number(b.click_count) || 0) - (Number(a.click_count) || 0);
+          if (clicksDiff !== 0) return clicksDiff;
+          return Number(b.id || 0) - Number(a.id || 0);
+        });
+
+        const top = all.slice(0, 3);
         const medals = ['🥇', '🥈', '🥉'];
         const rankBorders = ['border-gold', 'border-silver', 'border-bronze'];
 
         container.innerHTML = top.map((l, idx) => `
-          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="inspectLink(cachedLinks.find(x => x.id === ${l.id}))" title="Click to inspect this link">
+          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="onTopLinkClick(${l.id})" title="Click to inspect this link">
             <div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
             <div class="top-link-meta-box">
               <strong class="top-link-name">${escapeHTML(l.title || 'Untitled Link')}</strong>
-              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code)}</span>
+              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code || '')}</span>
             </div>
             <div class="top-link-right">
               <span class="top-link-count">${Number(l.click_count || 0).toLocaleString()} <em>clicks</em></span>
-              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(l.short_url)}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
+              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(l.short_url || '')}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
             </div>
           </div>
         `).join('');
 
         if ($('topPerformerNote')) {
           const leader = top[0];
-          const totalClicks = cachedLinks.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
-          const sharePct = totalClicks > 0 ? Math.round(((leader.click_count || 0) / totalClicks) * 100) : 0;
-          $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
+          const totalClicks = all.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
+          const leaderClicks = Number(leader.click_count) || 0;
+          
+          if (totalClicks > 0 && leaderClicks > 0) {
+            const sharePct = Math.round((leaderClicks / totalClicks) * 100);
+            $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
+          } else {
+            $('topPerformerNote').innerHTML = `⚡ Top link: <strong>${escapeHTML(leader.title || leader.short_code)}</strong> (Awaiting clicks).`;
+          }
         }
       } catch (err) {
-        console.warn("Leaderboard error:", err);
+        console.warn("Leaderboard render error:", err);
       }
+    }
+
+    // Name mismatch safety (dono naam se chalega)
+    window.renderTopLinksCard = renderTopLinksCard;
+    window.renderTopCardLink = renderTopLinksCard;
+
+    // Row click handler
+    function onTopLinkClick(linkId) {
+      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
+      if (!link) return;
+      inspectLink(link);
+      updateSpotlight(link);
+      toast(`Inspecting: ${link.title || link.short_code}`);
     }
 
       const activeTbody = $('activeLinksTbody');
