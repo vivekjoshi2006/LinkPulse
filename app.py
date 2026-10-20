@@ -120,7 +120,6 @@ initialize_database(Config)
 limiter = RateLimiter()
 app.teardown_appcontext(close_db)
 
-
 def exec_db(query, params=()):
     db = get_db()
     cur = db.cursor()
@@ -128,7 +127,6 @@ def exec_db(query, params=()):
         query = query.replace("%s", "?")
     cur.execute(query, params)
     return cur, db
-
 
 def auto_migrate():
     try:
@@ -192,13 +190,10 @@ def auto_migrate():
     except Exception as e:
         print("Auto-migration notice:", e)
 
-
 auto_migrate()
-
 
 def iso(val):
     return val.isoformat(timespec="seconds") if isinstance(val, datetime) else val
-
 
 def short_url_for(code: str) -> str:
     base = (app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
@@ -209,7 +204,6 @@ def short_url_for(code: str) -> str:
         except Exception:
             base = "http://localhost:5000"
     return f"{base}/{code}"
-
 
 def row_to_link(row: dict) -> dict:
     return {
@@ -232,7 +226,6 @@ def row_to_link(row: dict) -> dict:
         "user_id": row.get("user_id"),
     }
 
-
 def get_current_user() -> dict:
     user_id = session.get("user_id")
     if not session.get("authenticated") or not user_id:
@@ -245,7 +238,6 @@ def get_current_user() -> dict:
 
     return user
 
-
 def get_user_link_or_404(link_id: int, user_id: int) -> dict:
     link = query_one(f"{LINK_SELECT} WHERE l.id = %s", (link_id,))
     if not link:
@@ -254,13 +246,11 @@ def get_user_link_or_404(link_id: int, user_id: int) -> dict:
         raise ApiError(403, "forbidden", "You do not have permission to access or modify this link.")
     return link
 
-
 def json_body() -> dict:
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         raise ApiError(400, "bad_request", "Expected valid JSON request body.")
     return body
-
 
 def detect_country(req) -> str:
     ip = get_client_ip(req)
@@ -279,10 +269,8 @@ def detect_country(req) -> str:
 
     return "Global / Direct"
 
-
 def _user_email(username: str) -> str:
     return username if "@" in username else f"{username.lower()}@linkpulse.io"
-
 
 def _session_login(user: dict) -> None:
     session["authenticated"] = True
@@ -291,18 +279,15 @@ def _session_login(user: dict) -> None:
     session["user_role"] = user["role"]
     session["user_country"] = user["country"]
 
-
 @app.errorhandler(ApiError)
 def handle_api_error(err):
     return jsonify({"error": {"code": err.code, "message": err.message}}), err.status
-
 
 @app.errorhandler(404)
 def handle_404(err):
     if request.path.startswith("/api/"):
         return jsonify({"error": {"code": "not_found", "message": "Resource not found."}}), 404
     return Response("<h1>404 — Short URL Not Found</h1>", status=404, mimetype="text/html")
-
 
 @app.errorhandler(Exception)
 def handle_all_exceptions(err):
@@ -322,13 +307,11 @@ def handle_all_exceptions(err):
         </body></html>"""
     return Response(html, status=500, mimetype="text/html")
 
-
 @app.route("/login", methods=["GET"])
 def serve_login():
     if session.get("authenticated"):
         return redirect("/")
     return send_from_directory(FRONTEND_DIR, "login.html")
-
 
 @app.post("/api/login")
 def api_login():
@@ -371,7 +354,6 @@ def api_login():
         })
 
     raise ApiError(401, "unauthorized", "Invalid username or password.")
-
 
 @app.post("/api/register")
 def api_register():
@@ -416,7 +398,6 @@ def api_register():
         }
     }), 201
 
-
 @app.post("/api/auth/google")
 def api_google_auth():
     data = json_body()
@@ -456,12 +437,10 @@ def api_google_auth():
         }
     })
 
-
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
     session.clear()
     return redirect("/login")
-
 
 @app.route("/api/account", methods=["GET", "PATCH"])
 def account_settings():
@@ -503,28 +482,23 @@ def account_settings():
         }
     })
 
-
 @app.get("/")
 def serve_index():
     if not session.get("authenticated"):
         return redirect("/login")
     return send_from_directory(FRONTEND_DIR, "index.html")
 
-
 @app.get("/style.css")
 def serve_css():
     return send_from_directory(FRONTEND_DIR, "style.css", mimetype="text/css")
-
 
 @app.get("/Group_Logo.png")
 def serve_group_logo():
     return send_from_directory(FRONTEND_DIR, "Group_Logo.png")
 
-
 @app.get("/favicon.ico")
 def serve_favicon():
     return Response(status=204)
-
 
 @app.get("/api/links")
 def list_links():
@@ -541,7 +515,6 @@ def list_links():
 
     sql += " ORDER BY l.created_at DESC"
     return jsonify({"data": [row_to_link(row) for row in query_all(sql, params)]})
-
 
 @app.post("/api/links")
 def create_link():
@@ -603,7 +576,6 @@ def create_link():
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))}), 201
 
-
 @app.patch("/api/links/<int:link_id>")
 def update_link(link_id):
     user = get_current_user()
@@ -663,7 +635,6 @@ def update_link(link_id):
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
-
 @app.patch("/api/links/<int:link_id>/status")
 def toggle_status(link_id):
     user = get_current_user()
@@ -679,7 +650,6 @@ def toggle_status(link_id):
 
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
-
 @app.delete("/api/links/<int:link_id>")
 def delete_link(link_id):
     user = get_current_user()
@@ -687,7 +657,6 @@ def delete_link(link_id):
     _, db = exec_db("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
-
 
 @app.post("/api/links/<int:link_id>/simulate-click")
 def simulate_click(link_id):
@@ -718,7 +687,6 @@ def simulate_click(link_id):
     db.commit()
     return jsonify({"data": {"success": True, "clicks": link["click_count"] + 1, "country": country}})
 
-
 @app.get("/api/campaigns")
 def list_campaigns():
     user = get_current_user()
@@ -743,7 +711,6 @@ def list_campaigns():
         items.append(item)
 
     return jsonify({"data": items})
-
 
 @app.post("/api/campaigns")
 def create_campaign():
@@ -776,7 +743,6 @@ def create_campaign():
 
     return jsonify({"data": created}), 201
 
-
 @app.route("/api/campaigns/<int:campaign_id>", methods=["PATCH"])
 def update_campaign(campaign_id):
     user = get_current_user()
@@ -795,7 +761,6 @@ def update_campaign(campaign_id):
 
     return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
 
-
 @app.delete("/api/campaigns/<int:campaign_id>")
 def delete_campaign(campaign_id):
     user = get_current_user()
@@ -807,7 +772,6 @@ def delete_campaign(campaign_id):
     db.commit()
 
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
-
 
 @app.get("/api/analytics/summary")
 def analytics_summary():
@@ -838,7 +802,6 @@ def analytics_summary():
         "total_campaigns": max(0, camps["total_campaigns"] or 0) if camps else 0,
     }})
 
-
 @app.get("/api/analytics/clicks")
 def analytics_clicks():
     user = get_current_user()
@@ -866,7 +829,6 @@ def analytics_clicks():
     ]
 
     return jsonify({"data": series})
-
 
 @app.get("/api/analytics/breakdown")
 def analytics_breakdown():
@@ -912,7 +874,6 @@ def analytics_breakdown():
         "devices": format_breakdown(devices),
         "countries": format_breakdown(countries)
     }})
-
 
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
@@ -984,7 +945,6 @@ def redirect_engine(short_code):
     db.commit()
     return redirect(link["original_url"], code=303 if request.method == "POST" else 302)
 
-
 @app.route("/api/links/export", methods=["GET"])
 def export_csv():
     user = get_current_user()
@@ -1011,7 +971,6 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=linkpulse-export-{datetime.now():%Y%m%d}.csv"}
     )
-
 
 @app.route("/api/links/import", methods=["POST"])
 def import_csv():
@@ -1228,7 +1187,6 @@ def import_csv():
         }
     }), 201
 
-
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
     user = get_current_user()
@@ -1257,7 +1215,6 @@ def get_campaign_details(campaign_id):
         }
     })
 
-
 @app.route("/api/campaigns/<int:campaign_id>/assign-link", methods=["POST"])
 def assign_campaign_link(campaign_id):
     user = get_current_user()
@@ -1279,7 +1236,6 @@ def assign_campaign_link(campaign_id):
 
     db.commit()
     return jsonify({"data": {"success": True}})
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
