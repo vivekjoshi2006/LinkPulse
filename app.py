@@ -25,6 +25,15 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "123")
 
 initialize_database(Config)
 
+def exec_db(query, params=()):
+    """Helper to safely execute write queries across SQLite and MySQL engines."""
+    db = get_db()
+    cur = db.cursor()
+    if get_engine() == "sqlite" and "%s" in query:
+        query = query.replace("%s", "?")
+    cur.execute(query, params)
+    return cur, db
+
 def auto_migrate():
     try:
         if get_engine() == "mysql":
@@ -60,21 +69,21 @@ def auto_migrate():
 
         cur.execute("PRAGMA table_info(links);")
         link_cols = [r[1] for r in cur.fetchall()]
-        if link_cols and "user_id" not in link_cols:
-            cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
-        cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
-
-        if link_cols and "password_plain" not in link_cols:
-            cur.execute("ALTER TABLE links ADD COLUMN password_plain TEXT NULL;")
+        if link_cols:
+            if "user_id" not in link_cols:
+                cur.execute("ALTER TABLE links ADD COLUMN user_id INTEGER NULL;")
+            cur.execute("UPDATE links SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
+            if "password_plain" not in link_cols:
+                cur.execute("ALTER TABLE links ADD COLUMN password_plain TEXT NULL;")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
 
         cur.execute("PRAGMA table_info(campaigns);")
         camp_cols = [r[1] for r in cur.fetchall()]
-        if camp_cols and "user_id" not in camp_cols:
-            cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL;")
-        cur.execute("UPDATE campaigns SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
-
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
+        if camp_cols:
+            if "user_id" not in camp_cols:
+                cur.execute("ALTER TABLE campaigns ADD COLUMN user_id INTEGER NULL;")
+            cur.execute("UPDATE campaigns SET user_id = ? WHERE user_id IS NULL;", (admin_id,))
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);")
 
         cur.execute("PRAGMA table_info(click_events);")
         click_cols = [r[1] for r in cur.fetchall()]
@@ -243,9 +252,7 @@ def api_login():
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         admin_user = query_one("SELECT * FROM users WHERE username = %s", (ADMIN_USER,))
         if not admin_user:
-            db = get_db()
-            cur = db.cursor()
-            cur.execute("""
+            cur, db = exec_db("""
                 INSERT INTO users (name, username, password_hash, role, country, auth_provider)
                 VALUES ('Admin', %s, %s, 'Admin', 'India', 'system')
             """, (ADMIN_USER, generate_password_hash(ADMIN_PASSWORD)))
@@ -302,9 +309,7 @@ def api_register():
     except ValueError:
         age_int = None
 
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("""
+    cur, db = exec_db("""
         INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
         VALUES (%s, %s, %s, %s, %s, %s, 'manual')
     """, (name, username, pwd_hash, country, age_int, role))
@@ -334,9 +339,7 @@ def api_google_auth():
 
     user = query_one("SELECT * FROM users WHERE username = %s", (email,))
     if not user:
-        db = get_db()
-        cur = db.cursor()
-        cur.execute("""
+        cur, db = exec_db("""
             INSERT INTO users (name, username, password_hash, country, age, role, auth_provider)
             VALUES (%s, %s, NULL, 'India', 25, 'Admin', 'google')
         """, (name, email))
@@ -391,8 +394,7 @@ def account_settings():
     if not name:
         raise ApiError(400, "bad_request", "Full name cannot be empty.")
 
-    db = get_db()
-    db.cursor().execute("""
+    cur, db = exec_db("""
         UPDATE users SET name = %s, role = %s, country = %s WHERE id = %s
     """, (name, role, country, user["id"]))
     db.commit()
@@ -488,9 +490,7 @@ def create_link():
         except (ValueError, TypeError):
             campaign_id = None
 
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("""
+    cur, db = exec_db("""
         INSERT INTO links (title, original_url, short_code, custom_alias, expires_at, click_limit, password_hash, password_plain, campaign_id, user_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (title, destination, code, alias, expires_at, click_limit, pwd_hash, plain_pwd, campaign_id, user["id"]))
@@ -540,22 +540,17 @@ def update_link(link_id):
         else:
             campaign_id = None
 
-    if "clear_password" in data and data["clear_password"]:
+    if data.get("clear_password"):
         pwd_hash = None
         plain_pwd = None
-    elif "password" in data:
-        pw = str(data.get("password") or "").strip()
-        if pw:
-            if len(pw) < 3:
-                raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
-            pwd_hash = generate_password_hash(pw)
-            plain_pwd = pw
-        elif data.get("password") is None or data.get("password") == "":
-            pwd_hash = None
-            plain_pwd = None
+    elif "password" in data and str(data["password"]).strip() != "":
+        pw = str(data["password"]).strip()
+        if len(pw) < 3:
+            raise ApiError(400, "invalid_password", "Password must be at least 3 characters.")
+        pwd_hash = generate_password_hash(pw)
+        plain_pwd = pw
 
-    db = get_db()
-    db.cursor().execute("""
+    cur, db = exec_db("""
         UPDATE links 
         SET title = %s, original_url = %s, click_limit = %s, expires_at = %s, campaign_id = %s, password_hash = %s, password_plain = %s
         WHERE id = %s AND user_id = %s
@@ -572,8 +567,7 @@ def toggle_status(link_id):
     if new_status not in ("active", "disabled"):
         raise ApiError(400, "invalid_status", "Status must be 'active' or 'disabled'.")
     get_user_link_or_404(link_id, user["id"])
-    db = get_db()
-    db.cursor().execute("UPDATE links SET status = %s WHERE id = %s AND user_id = %s", (new_status, link_id, user["id"]))
+    cur, db = exec_db("UPDATE links SET status = %s WHERE id = %s AND user_id = %s", (new_status, link_id, user["id"]))
     db.commit()
     return jsonify({"data": row_to_link(get_user_link_or_404(link_id, user["id"]))})
 
@@ -581,8 +575,7 @@ def toggle_status(link_id):
 def delete_link(link_id):
     user = get_current_user()
     get_user_link_or_404(link_id, user["id"])
-    db = get_db()
-    db.cursor().execute("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
+    cur, db = exec_db("DELETE FROM links WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": link_id}})
 
@@ -597,18 +590,16 @@ def simulate_click(link_id):
     if link["click_limit"] is not None and link["click_count"] >= link["click_limit"]:
         raise ApiError(400, "limit_reached", "Cannot simulate click: Link has reached its maximum click limit.")
 
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
+    cur, db = exec_db("UPDATE links SET click_count = click_count + 1 WHERE id = %s AND user_id = %s", (link_id, user["id"]))
     country = detect_country(request)
     sim_ip_hash = anonymize_ip(f"simulated-{user['id']}-{datetime.now().timestamp()}", app.config["SECRET_KEY"])
     try:
-        cur.execute("""
+        exec_db("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
             VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', %s, 0, %s)
         """, (link_id, sim_ip_hash, country))
     except Exception:
-        cur.execute("""
+        exec_db("""
             INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
             VALUES (%s, 'Direct / Demo', 'Mozilla/5.0 LinkPulse Test', 'desktop', 'Chrome', %s, 0)
         """, (link_id, sim_ip_hash))
@@ -660,9 +651,7 @@ def create_campaign():
     if existing:
         raise ApiError(409, "conflict", f"A campaign with this name or tag (#{tag}) already exists.")
 
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (name, tag, user["id"]))
+    cur, db = exec_db("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (name, tag, user["id"]))
     c_id = cur.lastrowid
     db.commit()
 
@@ -683,8 +672,7 @@ def update_campaign(campaign_id):
     tag = slugify(str(data.get("tag") or name)).strip("-")
     if not name:
         raise ApiError(400, "invalid_campaign", "Campaign name cannot be empty.")
-    db = get_db()
-    db.cursor().execute("UPDATE campaigns SET name = %s, tag = %s WHERE id = %s AND user_id = %s", (name, tag, campaign_id, user["id"]))
+    cur, db = exec_db("UPDATE campaigns SET name = %s, tag = %s WHERE id = %s AND user_id = %s", (name, tag, campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))})
 
@@ -694,9 +682,8 @@ def delete_campaign(campaign_id):
     camp = query_one("SELECT * FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     if not camp:
         raise ApiError(404, "not_found", "Campaign not found.")
-    db = get_db()
-    db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE campaign_id = %s AND user_id = %s", (campaign_id, user["id"]))
-    db.cursor().execute("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
+    cur, db = exec_db("UPDATE links SET campaign_id = NULL WHERE campaign_id = %s AND user_id = %s", (campaign_id, user["id"]))
+    cur, db = exec_db("DELETE FROM campaigns WHERE id = %s AND user_id = %s", (campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"deleted": True, "id": campaign_id}})
 
@@ -749,7 +736,7 @@ def analytics_clicks():
     counts = {str(r["d"]): max(0, r["c"]) for r in rows}
     series = [
         {"date": dt, "clicks": max(0, counts.get(dt, 0))}
-        for dt in ((today - timedelta(days=i)).isoformat() for i in range(days))
+        for dt in ((today - timedelta(days=i)).isoformat() for i in range(days - 1, -1, -1))
     ]
 
     return jsonify({"data": series})
@@ -796,7 +783,7 @@ def analytics_breakdown():
 
 @app.route("/<short_code>", methods=["GET", "POST"])
 def redirect_engine(short_code):
-    if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout"):
+    if short_code in ("favicon.ico", "robots.txt", "api", "login", "logout", "style.css", "Group_Logo.png"):
         return Response(status=404)
 
     row = query_one(f"{LINK_SELECT} WHERE l.short_code = %s OR l.custom_alias = %s", (short_code, short_code))
@@ -892,24 +879,42 @@ def redirect_engine(short_code):
     cur = db.cursor()
 
     if not is_bot:
-        cur.execute("""
-            UPDATE links SET click_count = click_count + 1
-            WHERE id = %s AND (click_limit IS NULL OR click_count < click_limit)
-        """, (row["id"],))
+        if get_engine() == "sqlite":
+            cur.execute("""
+                UPDATE links SET click_count = click_count + 1
+                WHERE id = ? AND (click_limit IS NULL OR click_count < click_limit)
+            """, (row["id"],))
+        else:
+            cur.execute("""
+                UPDATE links SET click_count = click_count + 1
+                WHERE id = %s AND (click_limit IS NULL OR click_count < click_limit)
+            """, (row["id"],))
 
         if cur.rowcount == 0 and row["click_limit"] is not None:
             return Response("<h1>Click Limit Reached</h1>", status=410, mimetype="text/html")
 
     try:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0, country))
+        if get_engine() == "sqlite":
+            cur.execute("""
+                INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0, country))
+        else:
+            cur.execute("""
+                INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot, country)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0, country))
     except Exception:
-        cur.execute("""
-            INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0))
+        if get_engine() == "sqlite":
+            cur.execute("""
+                INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0))
+        else:
+            cur.execute("""
+                INSERT INTO click_events (link_id, referrer, user_agent, device_type, browser, ip_hash, is_bot)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (row["id"], ref, ua[:512], device, browser, ip_hash, 1 if is_bot else 0))
 
     db.commit()
 
@@ -940,53 +945,218 @@ def import_csv():
     if "file" not in request.files:
         raise ApiError(400, "invalid_file", "No CSV file uploaded.")
     file = request.files["file"]
+    if not file or not file.filename:
+        raise ApiError(400, "invalid_file", "No CSV file selected.")
+
+    filename = os.path.basename(file.filename)
+    if not filename.lower().endswith((".csv", ".txt", ".tsv")):
+        raise ApiError(400, "invalid_format", "Please upload a valid .csv file.")
+
     raw = file.read()
     if len(raw) > app.config["CSV_MAX_BYTES"]:
         raise ApiError(413, "payload_too_large", "CSV file exceeds maximum allowed size.")
 
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise ApiError(400, "invalid_encoding", "CSV must be UTF-8 encoded.")
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        raise ApiError(400, "invalid_csv", "CSV is empty or has no header row.")
-    imported, failed, errors = 0, 0, []
+    if not raw.strip():
+        raise ApiError(400, "empty_file", "The uploaded CSV file is empty.")
 
-    def get_csv_col(row, *aliases):
-        normalized = {str(k).strip().lower(): v for k, v in row.items() if k is not None}
-        for a in aliases:
-            val = normalized.get(a.lower())
-            if val is not None and str(val).strip():
-                return str(val).strip()
-        return ""
-
-    db = get_db()
-    for idx, row in enumerate(reader, start=2):
-        if idx - 1 > app.config["MAX_IMPORT_ROWS"]:
-            break
+    # Multi-encoding decode (handles UTF-8 with BOM, UTF-16, Latin-1, Windows-1252)
+    text = None
+    for enc in ("utf-8-sig", "utf-16", "utf-8", "latin-1", "cp1252"):
         try:
-            dest_raw = get_csv_col(row, "Destination", "destination", "url", "URL", "link", "original_url")
-            dest = validate_destination(dest_raw)
-            title_raw = get_csv_col(row, "Title", "title", "name")
-            title = (title_raw or title_from_url(dest)).strip()
-            
-            code = generate_short_code()
-            for _ in range(5):
-                if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
-                    break
-                code = generate_short_code()
+            text = raw.decode(enc)
+            break
+        except Exception:
+            continue
 
-            db.cursor().execute("""
-                INSERT INTO links (title, original_url, short_code, user_id) VALUES (%s, %s, %s, %s)
-            """, (title, dest, code, user["id"]))
-            imported += 1
+    if text is None:
+        raise ApiError(400, "invalid_encoding", "Unable to decode CSV file. Please ensure it is UTF-8 encoded.")
+
+    campaign_name = filename[:-4].strip() if filename.lower().endswith(".csv") else os.path.splitext(filename)[0].strip()
+    if not campaign_name:
+        campaign_name = "Imported Campaign"
+    campaign_name = campaign_name[:120]
+    base_tag = slugify(campaign_name) or "campaign"
+
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        raise ApiError(400, "empty_file", "The uploaded CSV file contains no content.")
+
+    # Auto-detect delimiter (comma, semicolon, tab, pipe)
+    delimiter = ","
+    try:
+        sample = "\n".join(lines[:10])
+        dialect = csv.Sniffer().sniff(sample, delimiters=";,|\t,")
+        delimiter = dialect.delimiter
+    except Exception:
+        first_line = lines[0]
+        delim_counts = {d: first_line.count(d) for d in (",", ";", "\t", "|")}
+        best_delim = max(delim_counts, key=delim_counts.get)
+        if delim_counts[best_delim] > 0:
+            delimiter = best_delim
+
+    stream = io.StringIO(text)
+    csv_reader = list(csv.reader(stream, delimiter=delimiter))
+
+    if not csv_reader:
+        raise ApiError(400, "empty_file", "The uploaded CSV file contains no content.")
+
+    def clean_header_cell(val):
+        return re.sub(r"[^a-z0-9]", "", str(val).strip().lower())
+
+    header_row = [clean_header_cell(c) for c in csv_reader[0]]
+    dest_col_idx = -1
+    title_col_idx = -1
+
+    dest_keywords = {
+        "destination", "destinationurl", "originalurl", "targeturl",
+        "longurl", "url", "urls", "link", "links", "target", "website",
+        "weburl", "site", "webpage", "shorturl"
+    }
+    title_keywords = {"title", "name", "linktitle", "titlename", "label"}
+
+    for idx, col in enumerate(header_row):
+        if col in dest_keywords:
+            if dest_col_idx == -1 or col in ("destination", "originalurl", "destinationurl"):
+                dest_col_idx = idx
+        elif col in title_keywords:
+            title_col_idx = idx
+
+    # If first row contains an actual URL, treat it as data (no header present)
+    first_row_is_header = False
+    if dest_col_idx != -1:
+        first_cell = str(csv_reader[0][dest_col_idx]).strip().lower()
+        if not (first_cell.startswith("http://") or first_cell.startswith("https://") or "www." in first_cell):
+            first_row_is_header = True
+        else:
+            first_row_is_header = False
+            dest_col_idx = -1
+
+    data_rows = csv_reader[1:] if first_row_is_header else csv_reader
+
+    valid_links = []
+    seen_urls = set()
+    duplicates = 0
+    invalid = 0
+    errors = []
+    max_rows = app.config.get("MAX_IMPORT_ROWS", 2500)
+
+    for r_idx, r in enumerate(data_rows, start=2 if first_row_is_header else 1):
+        if r_idx > max_rows:
+            break
+        if not r or not any(str(c).strip() for c in r):
+            continue
+
+        dest_raw = ""
+        title_raw = ""
+
+        if dest_col_idx != -1 and dest_col_idx < len(r):
+            dest_raw = str(r[dest_col_idx]).strip().strip("\"'<>")
+            if title_col_idx != -1 and title_col_idx < len(r):
+                title_raw = str(r[title_col_idx]).strip().strip("\"'")
+
+        # Fallback: scan row columns for any URL or domain pattern
+        if not dest_raw:
+            for cell in r:
+                c_str = str(cell).strip().strip("\"'<>")
+                if re.match(r"^https?://", c_str, re.IGNORECASE) or c_str.startswith("www."):
+                    dest_raw = c_str
+                    break
+            if not dest_raw:
+                for cell in r:
+                    c_str = str(cell).strip().strip("\"'<>")
+                    if "." in c_str and " " not in c_str and len(c_str) >= 4:
+                        if not c_str.lower().endswith((".csv", ".txt", ".png", ".jpg", ".pdf")):
+                            dest_raw = c_str
+                            break
+
+            if not title_raw and len(r) > 1:
+                for cell in r:
+                    c_str = str(cell).strip().strip("\"'")
+                    if c_str and c_str != dest_raw and not c_str.startswith(("http://", "https://")):
+                        title_raw = c_str
+                        break
+
+        if not dest_raw:
+            invalid += 1
+            errors.append(f"Row {r_idx}: No URL found")
+            continue
+
+        # Auto-prefix https:// if missing
+        if not re.match(r"^https?://", dest_raw, re.IGNORECASE):
+            if "." in dest_raw and not dest_raw.startswith(("/", "#", "mailto:", "javascript:")):
+                dest_raw = f"https://{dest_raw}"
+
+        try:
+            dest = validate_destination(dest_raw)
         except Exception as e:
-            failed += 1
-            errors.append(f"Row {idx}: {str(e)}")
+            invalid += 1
+            errors.append(f"Row {r_idx}: {str(e)}")
+            continue
+
+        dest_lower = dest.lower()
+        if dest_lower in seen_urls:
+            duplicates += 1
+            continue
+        seen_urls.add(dest_lower)
+
+        title = (title_raw or title_from_url(dest)).strip()[:160]
+        valid_links.append((title, dest))
+
+    if not valid_links:
+        err_detail = f" (Found {invalid} invalid row(s))." if invalid else ""
+        raise ApiError(400, "no_valid_links", f"No valid links could be extracted from the CSV file.{err_detail}")
+
+    final_name = campaign_name
+    final_tag = base_tag
+    counter = 1
+    while query_one(
+        "SELECT id FROM campaigns WHERE (LOWER(name) = LOWER(%s) OR LOWER(tag) = LOWER(%s)) AND user_id = %s",
+        (final_name, final_tag, user["id"])
+    ):
+        counter += 1
+        final_name = f"{campaign_name} ({counter})"
+        final_tag = f"{base_tag}-{counter}"
+
+    cur, db = exec_db("INSERT INTO campaigns (name, tag, user_id) VALUES (%s, %s, %s)", (final_name, final_tag, user["id"]))
+    campaign_id = cur.lastrowid
+
+    imported = 0
+    for title, dest in valid_links:
+        code = generate_short_code()
+        for _ in range(10):
+            if not query_one("SELECT id FROM links WHERE short_code = %s", (code,)):
+                break
+            code = generate_short_code()
+
+        exec_db("""
+            INSERT INTO links (title, original_url, short_code, campaign_id, user_id)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (title, dest, code, campaign_id, user["id"]))
+        imported += 1
 
     db.commit()
-    return jsonify({"data": {"imported": imported, "failed": failed, "errors": errors[:20]}})
+
+    feedback_msg = f"Campaign '{final_name}' created with {imported} link{'s' if imported != 1 else ''}."
+    extra_notes = []
+    if duplicates:
+        extra_notes.append(f"{duplicates} duplicate{'s' if duplicates != 1 else ''} skipped")
+    if invalid:
+        extra_notes.append(f"{invalid} invalid row{'s' if invalid != 1 else ''} skipped")
+    if extra_notes:
+        feedback_msg += f" ({', '.join(extra_notes)})"
+
+    return jsonify({
+        "data": {
+            "campaign_id": campaign_id,
+            "campaign_name": final_name,
+            "campaign_tag": final_tag,
+            "imported": imported,
+            "duplicates": duplicates,
+            "failed": invalid,
+            "errors": errors[:10],
+            "message": feedback_msg
+        }
+    }), 201
 
 @app.route("/api/campaigns/<int:campaign_id>/details", methods=["GET"])
 def get_campaign_details(campaign_id):
@@ -1025,11 +1195,10 @@ def assign_campaign_link(campaign_id):
         raise ApiError(400, "invalid_id", "A valid link_id is required.")
     action = data.get("action", "add")
     get_user_link_or_404(link_id, user["id"])
-    db = get_db()
     if action == "add":
-        db.cursor().execute("UPDATE links SET campaign_id = %s WHERE id = %s AND user_id = %s", (campaign_id, link_id, user["id"]))
+        cur, db = exec_db("UPDATE links SET campaign_id = %s WHERE id = %s AND user_id = %s", (campaign_id, link_id, user["id"]))
     else:
-        db.cursor().execute("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s AND user_id = %s", (link_id, campaign_id, user["id"]))
+        cur, db = exec_db("UPDATE links SET campaign_id = NULL WHERE id = %s AND campaign_id = %s AND user_id = %s", (link_id, campaign_id, user["id"]))
     db.commit()
     return jsonify({"data": {"success": True}})
 
