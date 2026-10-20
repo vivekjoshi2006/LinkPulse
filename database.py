@@ -1,16 +1,21 @@
-import sqlite3
-import re
 from datetime import datetime
 from pathlib import Path
-import pymysql
+import re
+import sqlite3
+
 from flask import current_app, g
+import pymysql
 
 BASE_DIR = Path(__file__).resolve().parent
 ACTIVE_ENGINE = "sqlite"
 
+_RE_PARAM = re.compile(r'(?<!%)(%s)')
+_RE_INTERVAL = re.compile(r'CURDATE\(\)\s*-\s*INTERVAL\s*\?\s*(?:DAY|DAYS)', re.IGNORECASE)
+_RE_CURDATE = re.compile(r'CURDATE\(\)', re.IGNORECASE)
+_RE_NOW = re.compile(r'NOW\(\)', re.IGNORECASE)
+
 
 def get_engine():
-    global ACTIVE_ENGINE
     return ACTIVE_ENGINE
 
 
@@ -21,23 +26,18 @@ class UniversalCursor:
 
     def execute(self, sql, params=()):
         if self.is_sqlite:
-            sql = re.sub(r'(?<!%)(%s)', '?', sql)
+            sql = _RE_PARAM.sub('?', sql)
             sql = sql.replace('%%', '%')
-            sql = re.sub(
-                r'CURDATE\(\)\s*-\s*INTERVAL\s*\?\s*(?:DAY|DAYS)',
-                "datetime('now', '-' || ? || ' days')",
-                sql,
-                flags=re.IGNORECASE
-            )
-            sql = re.sub(r'CURDATE\(\)', "date('now')", sql, flags=re.IGNORECASE)
-            sql = re.sub(r'NOW\(\)', "datetime('now')", sql, flags=re.IGNORECASE)
+            sql = _RE_INTERVAL.sub("datetime('now', '-' || ? || ' days')", sql)
+            sql = _RE_CURDATE.sub("date('now')", sql)
+            sql = _RE_NOW.sub("datetime('now')", sql)
 
         self.cur.execute(sql, params)
         return self
 
     def fetchall(self):
         rows = self.cur.fetchall()
-        return [dict(r) for r in rows] if self.is_sqlite else rows
+        return [dict(row) for row in rows] if self.is_sqlite else rows
 
     def fetchone(self):
         row = self.cur.fetchone()
@@ -60,8 +60,7 @@ class UniversalDB:
     def cursor(self):
         if self.is_sqlite:
             self.conn.row_factory = sqlite3.Row
-            return UniversalCursor(self.conn.cursor(), is_sqlite=True)
-        return UniversalCursor(self.conn.cursor(), is_sqlite=False)
+        return UniversalCursor(self.conn.cursor(), is_sqlite=self.is_sqlite)
 
     def commit(self):
         self.conn.commit()
@@ -84,6 +83,7 @@ def _sqlite_now():
 def get_db():
     if "db" not in g:
         cfg = current_app.config
+
         if ACTIVE_ENGINE == "mysql":
             conn = pymysql.connect(
                 host=cfg["DB_HOST"],
@@ -102,16 +102,19 @@ def get_db():
             conn.create_function("CURDATE", 0, _sqlite_curdate)
             conn.create_function("NOW", 0, _sqlite_now)
             g.db = UniversalDB(conn, is_sqlite=True)
+
     return g.db
 
 
 def close_db(exc=None):
     db = g.pop("db", None)
-    if db is not None:
-        try:
-            db.rollback() if exc else db.commit()
-        finally:
-            db.close()
+    if db is None:
+        return
+
+    try:
+        db.rollback() if exc else db.commit()
+    finally:
+        db.close()
 
 
 def query_all(sql, params=()):
@@ -128,6 +131,7 @@ def query_one(sql, params=()):
 
 def initialize_database(cfg):
     global ACTIVE_ENGINE
+
     if cfg.DB_ENGINE in ("mysql", "auto"):
         try:
             conn = pymysql.connect(
@@ -139,11 +143,15 @@ def initialize_database(cfg):
                 autocommit=True
             )
             with conn.cursor() as cur:
-                cur.execute(f"CREATE DATABASE IF NOT EXISTS `{cfg.DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                cur.execute(
+                    f"CREATE DATABASE IF NOT EXISTS `{cfg.DB_NAME}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+                )
             conn.select_db(cfg.DB_NAME)
             with conn.cursor() as cur:
                 _create_mysql_tables(cur)
             conn.close()
+
             ACTIVE_ENGINE = "mysql"
             return "MySQL (Production)"
         except Exception as e:
@@ -210,6 +218,7 @@ def _create_sqlite_tables(conn):
     """)
 
     cur = conn.cursor()
+
     cur.execute("PRAGMA table_info(campaigns);")
     campaign_cols = [r[1] for r in cur.fetchall()]
     if campaign_cols and "user_id" not in campaign_cols:
@@ -244,6 +253,7 @@ def _create_mysql_tables(cur):
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS campaigns (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -254,6 +264,7 @@ def _create_mysql_tables(cur):
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS links (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -274,6 +285,7 @@ def _create_mysql_tables(cur):
         INDEX idx_links_user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS click_events (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
