@@ -197,7 +197,7 @@
       </div>
     </aside>
 
-    <!-- Main -->
+    <!-- Main Viewport -->
     <main class="main-viewport">
       <header class="glass-header">
         <div class="header-left">
@@ -205,39 +205,38 @@
           <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
           <p class="header-subtitle" id="pageSub">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
         </div>
-       <div class="header-actions" id="headerActions">
-  <button class="btn-light-export" id="exportCsvBtn">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-    <span>Export CSV</span>
-  </button>
+        <div class="header-actions" id="headerActions">
+          <button class="btn-light-export" id="exportCsvBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Export CSV</span>
+          </button>
 
-  <input type="file" id="csvFileInput" accept=".csv" hidden />
+          <input type="file" id="csvFileInput" accept=".csv" hidden />
 
-  <button class="btn-light-import" id="importCsvBtn">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-    <span>Import CSV</span>
-  </button>
+          <button class="btn-light-import" id="importCsvBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span>Import CSV</span>
+          </button>
 
-  <button class="btn-gradient" id="openDrawerBtn">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-    <span>Create Smart Link</span>
-  </button>
-</div>
+          <button class="btn-gradient" id="openDrawerBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Create Smart Link</span>
+          </button>
+        </div>
       </header>
 
-      <!-- Overview -->
-     <!-- Overview Tab -->
+      <!-- Overview Tab -->
       <section class="tab-pane active" id="tab-overview">
         
         <!-- 1. Stats Ribbon (4 Cards) -->
@@ -335,9 +334,9 @@
             </div>
           </div>
 
-        </div> <!-- /.dashboard-split (Properly Closed Here) -->
+        </div> <!-- /.dashboard-split -->
 
-        <!-- 4. Breakdown Grid (Referrers, Devices, Countries - NEVER HIDDEN) -->
+        <!-- 4. Breakdown Grid (Referrers, Devices, Countries) -->
         <div class="breakdown-grid">
           <div class="glass-container breakdown-card">
             <h4 class="breakdown-title">Top Traffic Referrers</h4>
@@ -385,8 +384,11 @@
 
         <!-- 1. Active Short Links Tab Pane -->
         <div class="manage-subpane active" id="subtab-active-links">
+          
+          <!-- TOP ROW: Spotlight (Left) + Bar Graph (Right) -->
           <div class="active-links-split" style="margin-bottom: 1.5rem;">
-            <!-- Active Short Links Spotlight Card -->
+            
+            <!-- Spotlight Card -->
             <div class="glass-container spotlight-box" id="activeShortLinksBox">
               <div class="box-head-flex">
                 <div>
@@ -414,12 +416,16 @@
                 <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
                 <div class="spotlight-qr-meta">
                   <strong>Crisp Vector QR</strong>
-                  <button class="text-link-btn" id="spotlightDownloadQr">Download QR PNG ↓</button>
+                  <div style="display: flex; gap: 0.65rem; align-items: center; margin-top: 0.35rem;">
+                    <button class="text-link-btn" id="spotlightDownloadQr" style="margin-top: 0;">Download PNG ↓</button>
+                    <span style="color: #cbd5e1;">•</span>
+                    <button class="text-link-btn" id="spotlightShareBtn" style="margin-top: 0; color: #4f46e5;">Share 📤</button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Columns Graph -->
+            <!-- Bar Columns Graph -->
             <div class="glass-container chart-box">
               <div class="box-head-flex">
                 <div>
@@ -448,8 +454,10 @@
                 <div class="chart-labels-row" id="chartDateRow2"></div>
               </div>
             </div>
-          </div>
 
+          </div> <!-- /.active-links-split -->
+
+          <!-- BOTTOM ROW: Full Width Table -->
           <div class="glass-container table-wrapper-box">
             <div class="table-top-bar">
               <div>
@@ -482,6 +490,7 @@
               </table>
             </div>
           </div>
+
         </div>
 
         <!-- 2. All Managed Links Tab Pane -->
@@ -568,8 +577,8 @@
               <h3 class="box-title">Click Any Row to Inspect Live Telemetry</h3>
             </div>
             <div>
-              <button class="btn-glass-light" id="exportCsvBtnAnalytics" title="Export all short links to CSV">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <button class="btn-light-export" id="exportCsvBtnAnalytics" title="Export all short links to CSV">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
@@ -869,7 +878,62 @@
         <div id="qrCanvasBox"></div>
       </div>
       <p id="qrUrlLabel" class="qr-code-url-txt"></p>
-      <button class="btn-gradient full-w" id="downloadQrBtn">⇩ Download High-Res PNG</button>
+      <div style="display: flex; gap: 0.65rem; margin-top: 0.5rem;">
+        <button class="btn-gradient" id="downloadQrBtn" style="flex: 1.2;">⇩ Download PNG</button>
+        <button class="btn-light-export" id="shareQrModalBtn" style="flex: 1; justify-content: center;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+          <span>Share QR</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direct Share Modal (WhatsApp, Gmail, Telegram, X) -->
+  <div class="modal-overlay" id="shareModal">
+    <div class="modal-glass-container" style="max-width: 440px; text-align: left;">
+      <button class="modal-close-cross" onclick="$('shareModal').classList.remove('active')">&times;</button>
+      
+      <div style="display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.25rem;">
+        <div class="modal-icon-badge" style="margin: 0; width: 42px; height: 42px; font-size: 1.25rem;">📤</div>
+        <div>
+          <h3 class="modal-main-title" style="font-size: 1.25rem; margin: 0;">Share Short Link</h3>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Send directly to your favorite apps</p>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">LINK URL</span>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="shareModalUrl" class="field-slug-input" readonly style="font-size: 0.82rem; padding: 0.6rem 0.85rem;" />
+          <button class="btn-spotlight-copy" onclick="copyLink($('shareModalUrl').value)" style="padding: 0.6rem 1rem;">Copy</button>
+        </div>
+      </div>
+
+      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.65rem;">SHARE DIRECTLY</span>
+      <div class="share-options-grid">
+        <a id="shareWhatsappBtn" target="_blank" rel="noopener" class="share-btn-tile share-whatsapp">
+          <span class="share-tile-icon">💬</span>
+          <strong>WhatsApp</strong>
+        </a>
+        <a id="shareGmailBtn" target="_blank" rel="noopener" class="share-btn-tile share-gmail">
+          <span class="share-tile-icon">✉️</span>
+          <strong>Gmail</strong>
+        </a>
+        <a id="shareTelegramBtn" target="_blank" rel="noopener" class="share-btn-tile share-telegram">
+          <span class="share-tile-icon">✈️</span>
+          <strong>Telegram</strong>
+        </a>
+        <a id="shareTwitterBtn" target="_blank" rel="noopener" class="share-btn-tile share-twitter">
+          <span class="share-tile-icon">𝕏</span>
+          <strong>Twitter / X</strong>
+        </a>
+      </div>
     </div>
   </div>
 
@@ -877,29 +941,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
-    // Global Row click handler for Top Links Card
-    window.onTopLinkClick = function(linkId) {
-      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
-      if (!link) return;
-
-      selectedLinkId = link.id;
-      inspectLink(link);
-      updateSpotlight(link);
-
-      // 1. Switch to 'Link Analytics' tab
-      const analyticsTabBtn = document.querySelector('.nav-tab[data-tab="tab-details"]');
-      if (analyticsTabBtn) {
-        analyticsTabBtn.click();
-      }
-
-      // 2. Highlight row and scroll to inspect section
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 50);
-
-      toast(`Inspecting: ${link.title || link.short_code}`);
-    };
-
     const $ = id => document.getElementById(id);
     window.$ = $;
 
@@ -911,6 +952,130 @@
     const escapeHTML = val => String(val ?? '').replace(/[&<>"']/g, ch => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[ch]));
+
+    // Helper: Ensure short link is reachable from local device or mobile
+    function formatReachableUrl(url) {
+      if (!url) return '';
+      if ((url.includes('127.0.0.1') || url.includes('localhost')) && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+        try {
+          const u = new URL(url);
+          return `${window.location.protocol}//${window.location.host}${u.pathname}`;
+        } catch (e) {
+          return url;
+        }
+      }
+      return url;
+    }
+
+    // Direct WhatsApp / Gmail Share Opener
+    function openShareModal(link) {
+      if (!link) return;
+      const url = formatReachableUrl(link.short_url || '');
+      const title = encodeURIComponent(link.title || 'Check out this link');
+      const encUrl = encodeURIComponent(url);
+
+      if ($('shareModalUrl')) $('shareModalUrl').value = url;
+      
+      if ($('shareWhatsappBtn')) {
+        $('shareWhatsappBtn').href = `https://api.whatsapp.com/send?text=${title}%20${encUrl}`;
+      }
+      if ($('shareGmailBtn')) {
+        $('shareGmailBtn').href = `mailto:?subject=${title}&body=Hey,%20check%20out%20this%20link:%20${encUrl}`;
+      }
+      if ($('shareTelegramBtn')) {
+        $('shareTelegramBtn').href = `https://t.me/share/url?url=${encUrl}&text=${title}`;
+      }
+      if ($('shareTwitterBtn')) {
+        $('shareTwitterBtn').href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${title}`;
+      }
+
+      $('shareModal')?.classList.add('active');
+    }
+
+    // Global Row click handler for Top Links Card (Navigates to Link Analytics)
+    window.onTopLinkClick = function(linkId) {
+      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
+      if (!link) return;
+
+      selectedLinkId = link.id;
+      inspectLink(link);
+      updateSpotlight(link);
+
+      const analyticsTabBtn = document.querySelector('.nav-tab[data-tab="tab-details"]');
+      if (analyticsTabBtn) {
+        analyticsTabBtn.click();
+      }
+
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
+
+      toast(`Inspecting: ${link.title || link.short_code}`);
+    };
+
+    // Top Performing Links Card Renderer
+    function renderTopLinksCard() {
+      const container = $('topLinksList');
+      if (!container) return;
+
+      try {
+        const all = Array.isArray(cachedLinks) ? [...cachedLinks] : [];
+
+        if (!all.length) {
+          container.innerHTML = `
+            <div class="empty-top-links">
+              <span style="font-size: 1.6rem;">🔗</span>
+              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No links created yet</p>
+              <span style="font-size: 0.74rem; color: var(--text-muted);">Create your first short link above to see rankings.</span>
+            </div>`;
+          if ($('topPerformerNote')) {
+            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting your first short link.</span>`;
+          }
+          return;
+        }
+
+        all.sort((a, b) => {
+          const clicksDiff = (Number(b.click_count) || 0) - (Number(a.click_count) || 0);
+          if (clicksDiff !== 0) return clicksDiff;
+          return Number(b.id || 0) - Number(a.id || 0);
+        });
+
+        const top = all.slice(0, 3);
+        const medals = ['🥇', '🥈', '🥉'];
+        const rankBorders = ['border-gold', 'border-silver', 'border-bronze'];
+
+        container.innerHTML = top.map((l, idx) => `
+          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="onTopLinkClick(${l.id})" title="Click to inspect this link">
+            <div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
+            <div class="top-link-meta-box">
+              <strong class="top-link-name">${escapeHTML(l.title || 'Untitled Link')}</strong>
+              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code || '')}</span>
+            </div>
+            <div class="top-link-right">
+              <span class="top-link-count">${Number(l.click_count || 0).toLocaleString()} <em>clicks</em></span>
+              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(formatReachableUrl(l.short_url || ''))}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
+            </div>
+          </div>
+        `).join('');
+
+        if ($('topPerformerNote')) {
+          const leader = top[0];
+          const totalClicks = all.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
+          const leaderClicks = Number(leader.click_count) || 0;
+          
+          if (totalClicks > 0 && leaderClicks > 0) {
+            const sharePct = Math.round((leaderClicks / totalClicks) * 100);
+            $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
+          } else {
+            $('topPerformerNote').innerHTML = `⚡ Top link: <strong>${escapeHTML(leader.title || leader.short_code)}</strong> (Awaiting clicks).`;
+          }
+        }
+      } catch (err) {
+        console.warn("Leaderboard render error:", err);
+      }
+    }
+    window.renderTopLinksCard = renderTopLinksCard;
+    window.renderTopCardLink = renderTopLinksCard;
 
     const tabMeta = {
       'tab-overview': {
@@ -945,10 +1110,22 @@
       }
     };
 
-    [$('campaignDetailsModal'), $('qrModal'), $('accountModal')].forEach(modal => {
+    [$('campaignDetailsModal'), $('qrModal'), $('accountModal'), $('shareModal')].forEach(modal => {
       modal?.addEventListener('click', e => {
         if (e.target === modal) modal.classList.remove('active');
       });
+    });
+
+    $('spotlightShareBtn')?.addEventListener('click', () => {
+      const activeLink = (selectedLinkId && cachedLinks.find(l => l.id === selectedLinkId)) ||
+        cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
+      if (activeLink) openShareModal(activeLink);
+    });
+
+    $('shareQrModalBtn')?.addEventListener('click', () => {
+      const code = $('qrUrlLabel')?.textContent;
+      const link = cachedLinks.find(l => l.short_url === code) || { short_url: code, title: 'QR Link' };
+      openShareModal(link);
     });
 
     async function api(path, opts = {}) {
@@ -1102,7 +1279,7 @@
       }
     };
 
-   function sanitizeDailySeries(raw) {
+    function sanitizeDailySeries(raw) {
       const counts = {};
       if (Array.isArray(raw)) {
         raw.forEach(r => {
@@ -1111,7 +1288,6 @@
       }
 
       const points = [];
-      // 👉 Loop ab -5 (5 din pehle) se lekar +1 (Tomorrow) tak chalega:
       for (let offset = -5; offset <= 1; offset++) {
         const d = new Date();
         d.setDate(d.getDate() + offset);
@@ -1129,7 +1305,6 @@
         } else if (offset === 1) {
           label = 'Tomorrow';
         } else {
-          // 5, 4, 3, 2 din pehle ki date (e.g. 15 Thu, 16 Fri, 17 Sat, 18 Sun)
           const weekdayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
           label = `${d.getDate()} ${weekdayStr}`;
         }
@@ -1374,6 +1549,7 @@
         $('qrModal')?.classList.remove('active');
         $('campaignDetailsModal')?.classList.remove('active');
         $('accountModal')?.classList.remove('active');
+        $('shareModal')?.classList.remove('active');
       }
     });
 
@@ -1483,6 +1659,7 @@
         renderBarRows(breakdown?.sources, 'sourceRows', 'grad-azure', 'No traffic referrers logged yet.');
         renderBarRows(breakdown?.devices, 'deviceRows', 'grad-violet', 'No device telemetry logged yet.');
         renderBarRows(breakdown?.countries, 'countryRows', 'grad-emerald', 'No geographic data logged yet.');
+        
         renderTopLinksCard();
       } catch (err) {
         console.error('Dashboard error:', err);
@@ -1513,52 +1690,42 @@
     }
 
     async function loadLinks() {
-    try {
+      try {
         const data = await api('/api/links');
         cachedLinks = Array.isArray(data) ? data : [];
 
-        // 1. (Divyanshu ka logic) Inspected Link ka count live update karega
+        // 1. Live refresh of currently inspected link
         if (selectedLinkId) {
-            const selectedLink = cachedLinks.find(
-                link => Number(link.id) === Number(selectedLinkId)
-            );
-
-            if (selectedLink && $('detClicks')) {
-                $('detClicks').textContent =
-                    Number(selectedLink.click_count || 0).toLocaleString();
-            }
+          const selectedLink = cachedLinks.find(
+            link => Number(link.id) === Number(selectedLinkId)
+          );
+          if (selectedLink && $('detClicks')) {
+            $('detClicks').textContent = Number(selectedLink.click_count || 0).toLocaleString();
+          }
         }
 
         // 2. Tables render karein
         renderLinks(filteredLinks());
 
-        // 3. RHS Top Performing Leaderboard ko real-time update karein
-        if (typeof renderTopLinksCard === 'function') {
-            renderTopLinksCard();
-        }
+        // 3. RHS Top Performing Leaderboard render karein
+        renderTopLinksCard();
 
-        // 4. Spotlight aur inspection state maintain karein
-        const activeLink =
-            cachedLinks.find(l => l.status === 'active') ||
-            cachedLinks[0];
+        // 4. Spotlight & Active Link inspection
+        const activeLink = cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
 
         if (cachedLinks.length > 0) {
-            updateSpotlight(activeLink);
-
-            if (
-                !selectedLinkId ||
-                !cachedLinks.some(l => l.id === selectedLinkId)
-            ) {
-                inspectLink(activeLink);
-            }
+          updateSpotlight(activeLink);
+          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
+            inspectLink(activeLink);
+          }
         } else {
-            inspectLink(null);
-            updateSpotlight(null);
+          inspectLink(null);
+          updateSpotlight(null);
         }
-    } catch (err) {
+      } catch (err) {
         console.error('Failed to load links:', err);
+      }
     }
-}
 
     function filteredLinks() {
       if (!Array.isArray(cachedLinks)) return [];
@@ -1582,7 +1749,7 @@
 
       return links.map(l => {
         const code = escapeHTML(l.custom_alias || l.short_code);
-        const shortUrl = escapeHTML(l.short_url);
+        const shortUrl = escapeHTML(formatReachableUrl(l.short_url));
         const status = ['active', 'disabled', 'expired'].includes(l.status) ? l.status : 'disabled';
         const isSelected = selectedLinkId === l.id ? 'selected-row' : '';
         const titleText = isDetailsView ? 'Click row to inspect live telemetry' : 'Click row to inspect';
@@ -1590,7 +1757,9 @@
         const actionCell = isDetailsView ? '' : `
           <td style="text-align: right;">
             <div class="table-action-row">
+              <button class="action-icon-btn btn-simulate" data-action="test-click" data-id="${Number(l.id)}" title="Simulate 1 Realtime Click">⚡</button>
               <button class="action-icon-btn" data-action="qr" data-id="${Number(l.id)}" title="QR Code">▦</button>
+              <button class="action-icon-btn btn-share" data-action="share" data-id="${Number(l.id)}" title="Share Short Link">📤</button>
               <button class="action-icon-btn" data-action="edit" data-id="${Number(l.id)}" title="Edit Link">✎</button>
               <button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}" title="${status === 'active' ? 'Pause Link' : 'Activate Link'}">${status === 'active' ? '⏸' : '▶'}</button>
               <button class="action-icon-btn btn-danger-action" data-action="delete" data-id="${Number(l.id)}" title="Delete Link">✕</button>
@@ -1616,83 +1785,6 @@
 
     function renderLinks(links) {
       if ($('linksTbody')) $('linksTbody').innerHTML = buildLinkRows(links, false);
-
-      // Top Performing Links Card (Bulletproof & Safe)
-    function renderTopLinksCard() {
-      const container = $('topLinksList');
-      if (!container) return; // Container check
-
-      try {
-        const all = Array.isArray(cachedLinks) ? [...cachedLinks] : [];
-
-        // Agar koi link hi nahi hai workspace mein
-        if (!all.length) {
-          container.innerHTML = `
-            <div class="empty-top-links">
-              <span style="font-size: 1.6rem;">🔗</span>
-              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No links created yet</p>
-              <span style="font-size: 0.74rem; color: var(--text-muted);">Create your first short link above to see rankings.</span>
-            </div>`;
-          if ($('topPerformerNote')) {
-            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting your first short link.</span>`;
-          }
-          return;
-        }
-
-        // Sort: Pehle clicks ke hisaab se, fir latest ke hisaab se
-        all.sort((a, b) => {
-          const clicksDiff = (Number(b.click_count) || 0) - (Number(a.click_count) || 0);
-          if (clicksDiff !== 0) return clicksDiff;
-          return Number(b.id || 0) - Number(a.id || 0);
-        });
-
-        const top = all.slice(0, 3);
-        const medals = ['🥇', '🥈', '🥉'];
-        const rankBorders = ['border-gold', 'border-silver', 'border-bronze'];
-
-        container.innerHTML = top.map((l, idx) => `
-          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="onTopLinkClick(${l.id})" title="Click to inspect this link">
-            <div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
-            <div class="top-link-meta-box">
-              <strong class="top-link-name">${escapeHTML(l.title || 'Untitled Link')}</strong>
-              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code || '')}</span>
-            </div>
-            <div class="top-link-right">
-              <span class="top-link-count">${Number(l.click_count || 0).toLocaleString()} <em>clicks</em></span>
-              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(l.short_url || '')}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
-            </div>
-          </div>
-        `).join('');
-
-        if ($('topPerformerNote')) {
-          const leader = top[0];
-          const totalClicks = all.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
-          const leaderClicks = Number(leader.click_count) || 0;
-          
-          if (totalClicks > 0 && leaderClicks > 0) {
-            const sharePct = Math.round((leaderClicks / totalClicks) * 100);
-            $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
-          } else {
-            $('topPerformerNote').innerHTML = `⚡ Top link: <strong>${escapeHTML(leader.title || leader.short_code)}</strong> (Awaiting clicks).`;
-          }
-        }
-      } catch (err) {
-        console.warn("Leaderboard render error:", err);
-      }
-    }
-
-    // Name mismatch safety (dono naam se chalega)
-    window.renderTopLinksCard = renderTopLinksCard;
-    window.renderTopCardLink = renderTopLinksCard;
-
-    // Row click handler
-    function onTopLinkClick(linkId) {
-      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
-      if (!link) return;
-      inspectLink(link);
-      updateSpotlight(link);
-      toast(`Inspecting: ${link.title || link.short_code}`);
-    }
 
       const activeTbody = $('activeLinksTbody');
       if (activeTbody) {
@@ -1721,17 +1813,19 @@
           };
       }
 
+      const formattedUrl = formatReachableUrl(link.short_url);
+
       if ($('spotlightTitle')) $('spotlightTitle').textContent = link.title || 'Untitled Link';
       if ($('spotlightDest')) $('spotlightDest').textContent = link.original_url || '';
-      if ($('spotlightShortUrl')) $('spotlightShortUrl').value = link.short_url || '';
-      if ($('spotlightCopyBtn')) $('spotlightCopyBtn').onclick = () => copyLink(link.short_url);
+      if ($('spotlightShortUrl')) $('spotlightShortUrl').value = formattedUrl;
+      if ($('spotlightCopyBtn')) $('spotlightCopyBtn').onclick = () => copyLink(formattedUrl);
       if ($('spotlightDownloadQr')) $('spotlightDownloadQr').onclick = () => downloadQr(link.custom_alias || link.short_code || 'shortlink', '#spotlightQrBox');
 
       const box = $('spotlightQrBox');
       if (box) {
         box.replaceChildren();
         if (typeof QRCode !== 'undefined') {
-          new QRCode(box, { text: link.short_url, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
+          new QRCode(box, { text: formattedUrl, width: 84, height: 84, colorDark: '#1e1b4b', colorLight: '#ffffff' });
         }
       }
     }
@@ -1739,20 +1833,21 @@
     async function copyLink(url) {
       try {
         await navigator.clipboard.writeText(url);
-        toast('Link copied!');
+        toast('Link copied to clipboard!');
       } catch {
         toast(`Copy: ${url}`);
       }
     }
 
     function openQr(url, code) {
-      $('qrUrlLabel').textContent = url;
+      const formattedUrl = formatReachableUrl(url);
+      $('qrUrlLabel').textContent = formattedUrl;
       $('qrModal').classList.add('active');
 
       const box = $('qrCanvasBox');
       box.replaceChildren();
       if (typeof QRCode !== 'undefined') {
-        new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
+        new QRCode(box, { text: formattedUrl, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff' });
       }
 
       $('downloadQrBtn').onclick = () => downloadQr(code, '#qrCanvasBox');
@@ -1826,16 +1921,22 @@
       const code = link.custom_alias || link.short_code;
 
       if (action === 'qr') return openQr(link.short_url, code);
+      if (action === 'share') return openShareModal(link);
       if (action === 'edit') return openDrawer(link);
 
       if (action === 'test-click') {
         try {
-          await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
-          toast(`⚡ Simulated 1 click! Watch the graph update.`);
-          return Promise.all([loadLinks(), refreshDashboard()]);
+          const res = await api(`/api/links/${link.id}/simulate-click`, { method: 'POST' });
+          toast(`⚡ Simulated 1 click! (${res.clicks} clicks total)`);
+          await Promise.all([loadLinks(), refreshDashboard()]);
+          if (selectedLinkId === link.id) {
+            const updated = cachedLinks.find(l => l.id === link.id);
+            if (updated) inspectLink(updated);
+          }
         } catch (err) {
           toast(err.message);
         }
+        return;
       }
 
       if (action === 'toggle') {
