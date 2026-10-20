@@ -14,10 +14,8 @@ _RE_INTERVAL = re.compile(r'CURDATE\(\)\s*-\s*INTERVAL\s*\?\s*(?:DAY|DAYS)', re.
 _RE_CURDATE = re.compile(r'CURDATE\(\)', re.IGNORECASE)
 _RE_NOW = re.compile(r'NOW\(\)', re.IGNORECASE)
 
-
 def get_engine():
     return ACTIVE_ENGINE
-
 
 class UniversalCursor:
     def __init__(self, cursor, is_sqlite=False):
@@ -51,7 +49,6 @@ class UniversalCursor:
     def rowcount(self):
         return self.cur.rowcount
 
-
 class UniversalDB:
     def __init__(self, conn, is_sqlite=False):
         self.conn = conn
@@ -71,14 +68,11 @@ class UniversalDB:
     def close(self):
         self.conn.close()
 
-
 def _sqlite_curdate():
     return datetime.now().strftime("%Y-%m-%d")
 
-
 def _sqlite_now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 
 def get_db():
     if "db" not in g:
@@ -105,7 +99,6 @@ def get_db():
 
     return g.db
 
-
 def close_db(exc=None):
     db = g.pop("db", None)
     if db is None:
@@ -116,18 +109,15 @@ def close_db(exc=None):
     finally:
         db.close()
 
-
 def query_all(sql, params=()):
     cur = get_db().cursor()
     cur.execute(sql, params)
     return cur.fetchall()
 
-
 def query_one(sql, params=()):
     cur = get_db().cursor()
     cur.execute(sql, params)
     return cur.fetchone()
-
 
 def initialize_database(cfg):
     global ACTIVE_ENGINE
@@ -163,7 +153,6 @@ def initialize_database(cfg):
     _create_sqlite_tables(conn)
     conn.close()
     return "SQLite (Embedded Zero-Config)"
-
 
 def _create_sqlite_tables(conn):
     conn.executescript("""
@@ -237,7 +226,6 @@ def _create_sqlite_tables(conn):
     CREATE INDEX IF NOT EXISTS idx_clicks_time ON click_events(clicked_at);
     """)
     conn.commit()
-
 
 def _create_mysql_tables(cur):
     cur.execute("""
