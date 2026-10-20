@@ -9,42 +9,47 @@ from collections import deque
 from datetime import datetime
 from urllib.parse import urlparse
 
-ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{3,35}$")
+ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,35}$")
 CODE_CHARS = string.ascii_letters + string.digits
 
 RESERVED_CODES = {
-    "api", "static", "assets", "style.css", "favicon.ico", "robots.txt",
-    "health", "app", "admin", "login", "logout", "register", "settings",
-    "dashboard", "links", "analytics", "campaigns", "create", "export",
-    "import", "docs", "help", "qr", "account"
+    "account", "admin", "analytics", "api", "app", "assets", "campaigns",
+    "create", "dashboard", "docs", "export", "favicon.ico", "health", "help",
+    "import", "links", "login", "logout", "qr", "register", "robots.txt",
+    "settings", "static", "style.css",
 }
 
 BLOCKED_DOMAINS = {
-    "malware-traffic.com", "phishing-link.org", "grabify.link", "iplogger.org",
-    "metadata.google.internal", "instance-data"
+    "grabify.link",
+    "instance-data",
+    "iplogger.org",
+    "malware-traffic.com",
+    "metadata.google.internal",
+    "phishing-link.org",
 }
 
-_BOT_SIGNATURES = (
-    "bot", "crawler", "spider", "slurp", "headless", "facebookexternalhit",
-    "embedly", "preview", "monitor", "yandex", "curl", "wget", "python-requests",
-    "googlebot", "bingbot", "duckduckbot", "twitterbot", "postman"
+BOT_SIGNATURES = (
+    "bingbot", "bot", "crawler", "curl", "duckduckbot", "embedly",
+    "facebookexternalhit", "googlebot", "headless", "monitor", "postman",
+    "preview", "python-requests", "slurp", "spider", "twitterbot", "wget",
+    "yandex",
 )
 
-_BROWSER_RULES = (
+BROWSER_RULES = (
     ("Edge", "edg/"),
     ("Opera", "opr/"),
     ("Samsung Internet", "samsungbrowser/"),
     ("Firefox", "firefox/"),
     ("Chrome", "chrome/"),
-    ("Safari", "safari/")
+    ("Safari", "safari/"),
 )
 
-_DATE_FORMATS = (
+DATE_FORMATS = (
     "%Y-%m-%d",
     "%Y-%m-%dT%H:%M",
     "%Y-%m-%dT%H:%M:%S",
     "%Y-%m-%d %H:%M",
-    "%Y-%m-%d %H:%M:%S"
+    "%Y-%m-%d %H:%M:%S",
 )
 
 
@@ -80,7 +85,7 @@ def _is_reserved_network(addr) -> bool:
 
 def is_private_or_reserved_ip(hostname: str) -> bool:
     host = hostname.strip("[]")
-    
+
     if host.isdigit():
         try:
             return _is_reserved_network(ipaddress.IPv4Address(int(host)))
@@ -99,7 +104,7 @@ def is_private_or_reserved_ip(hostname: str) -> bool:
 def validate_destination(raw_url: str) -> str:
     if not isinstance(raw_url, str) or not raw_url.strip():
         raise ApiError(400, "invalid_url", "Destination URL is required.")
-    
+
     url = raw_url.strip()
 
     if url.startswith("//"):
@@ -109,7 +114,7 @@ def validate_destination(raw_url: str) -> str:
 
     if len(url) > 2048:
         raise ApiError(400, "invalid_url", "Destination URL cannot exceed 2048 characters.")
-    
+
     if any(ord(c) < 32 for c in url):
         raise ApiError(400, "invalid_url", "URL contains illegal control characters.")
 
@@ -120,13 +125,13 @@ def validate_destination(raw_url: str) -> str:
 
     if parsed.scheme.lower() not in ("http", "https"):
         raise ApiError(400, "invalid_url", "Protocol must be HTTP or HTTPS.")
-        
+
     if not parsed.hostname:
         raise ApiError(400, "invalid_url", "Destination URL must include a valid hostname.")
 
     host = parsed.hostname.lower().rstrip(".")
 
-    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or is_private_or_reserved_ip(host):
+    if host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"} or is_private_or_reserved_ip(host):
         raise ApiError(400, "security_violation", "Redirecting to localhost or private subnets is prohibited.")
 
     if host in BLOCKED_DOMAINS:
@@ -141,32 +146,33 @@ def validate_destination(raw_url: str) -> str:
 def validate_alias(alias: str) -> str:
     if not alias or not isinstance(alias, str):
         raise ApiError(400, "invalid_alias", "Custom alias cannot be empty.")
-        
+
     slug = alias.strip()
-    if not ALIAS_RE.match(slug):
+    if not ALIAS_PATTERN.match(slug):
         raise ApiError(400, "invalid_alias", "Alias must be 3-35 alphanumeric characters, hyphens or underscores.")
-        
+
     if slug.lower() in RESERVED_CODES:
         raise ApiError(400, "invalid_alias", f"The alias '{slug}' is reserved by the system.")
-        
+
     return slug
 
 
-def parse_expires_at(value, allow_past=False):
+def parse_expires_at(value, allow_past: bool = False):
     if not value:
         return None
-        
+
     if isinstance(value, datetime):
         dt = value
     elif isinstance(value, str):
         raw = value.strip().rstrip("Z")
         dt = None
-        for fmt in _DATE_FORMATS:
+        for fmt in DATE_FORMATS:
             try:
                 dt = datetime.strptime(raw, fmt)
                 break
             except ValueError:
                 continue
+
         if dt is None:
             raise ApiError(400, "invalid_expiry", "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM.")
     else:
@@ -181,7 +187,7 @@ def parse_expires_at(value, allow_past=False):
     return dt
 
 
-def generate_short_code(length=7) -> str:
+def generate_short_code(length: int = 7) -> str:
     return "".join(secrets.choice(CODE_CHARS) for _ in range(length))
 
 
@@ -204,28 +210,30 @@ def title_from_url(url: str) -> str:
 def sanitize_referrer(referrer: str):
     if not referrer:
         return None
+
     try:
         parsed = urlparse(referrer)
         if parsed.scheme in ("http", "https") and parsed.hostname:
             return parsed.hostname.lower()[:255]
     except Exception:
         pass
+
     return None
 
 
 def anonymize_ip(ip: str, secret: str) -> str:
     client_ip = (ip or "unknown").strip()
-    return hashlib.sha256(f"{secret}|linkpulse|{client_ip}".encode("utf-8")).hexdigest()[:24]
+    payload = f"{secret}|linkpulse|{client_ip}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:24]
 
 
-def classify_user_agent(ua_raw: str):
-    if not ua_raw or not ua_raw.strip():
+def classify_user_agent(user_agent: str):
+    if not user_agent or not user_agent.strip():
         return "desktop", "Direct / Email", False
 
-    ua = ua_raw.lower()
-    is_bot = any(sig in ua for sig in _BOT_SIGNATURES)
-
-    browser = next((name for name, token in _BROWSER_RULES if token in ua), "Other")
+    ua = user_agent.lower()
+    is_bot = any(sig in ua for sig in BOT_SIGNATURES)
+    browser = next((name for name, token in BROWSER_RULES if token in ua), "Other")
 
     if is_bot:
         return "bot", "Search Engine / Bot", True
@@ -245,6 +253,7 @@ class RateLimiter:
 
     def allow(self, key: str, limit: int, window: int) -> bool:
         now = time.monotonic()
+
         with self._lock:
             if now - self._last_cleanup > 300:
                 self._hits = {
