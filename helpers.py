@@ -52,14 +52,12 @@ DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
 )
 
-
 class ApiError(Exception):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
-
 
 def get_client_ip(req) -> str:
     cf_ip = req.headers.get("CF-Connecting-IP")
@@ -72,7 +70,6 @@ def get_client_ip(req) -> str:
 
     return (req.remote_addr or "127.0.0.1").strip()
 
-
 def _is_reserved_network(addr) -> bool:
     return (
         addr.is_private
@@ -81,7 +78,6 @@ def _is_reserved_network(addr) -> bool:
         or addr.is_link_local
         or addr.is_unspecified
     )
-
 
 def is_private_or_reserved_ip(hostname: str) -> bool:
     host = hostname.strip("[]")
@@ -99,7 +95,6 @@ def is_private_or_reserved_ip(hostname: str) -> bool:
         return _is_reserved_network(ip)
     except ValueError:
         return False
-
 
 def validate_destination(raw_url: str) -> str:
     if not isinstance(raw_url, str) or not raw_url.strip():
@@ -142,7 +137,6 @@ def validate_destination(raw_url: str) -> str:
 
     return url
 
-
 def validate_alias(alias: str) -> str:
     if not alias or not isinstance(alias, str):
         raise ApiError(400, "invalid_alias", "Custom alias cannot be empty.")
@@ -155,7 +149,6 @@ def validate_alias(alias: str) -> str:
         raise ApiError(400, "invalid_alias", f"The alias '{slug}' is reserved by the system.")
 
     return slug
-
 
 def parse_expires_at(value, allow_past: bool = False):
     if not value:
@@ -186,14 +179,11 @@ def parse_expires_at(value, allow_past: bool = False):
 
     return dt
 
-
 def generate_short_code(length: int = 7) -> str:
     return "".join(secrets.choice(CODE_CHARS) for _ in range(length))
 
-
 def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:60]
-
 
 def title_from_url(url: str) -> str:
     try:
@@ -205,7 +195,6 @@ def title_from_url(url: str) -> str:
         host = host[4:]
 
     return (f"{host} Link" if host else "New Short Link")[:160]
-
 
 def sanitize_referrer(referrer: str):
     if not referrer:
@@ -220,12 +209,10 @@ def sanitize_referrer(referrer: str):
 
     return None
 
-
 def anonymize_ip(ip: str, secret: str) -> str:
     client_ip = (ip or "unknown").strip()
     payload = f"{secret}|linkpulse|{client_ip}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:24]
-
 
 def classify_user_agent(user_agent: str):
     if not user_agent or not user_agent.strip():
@@ -243,7 +230,6 @@ def classify_user_agent(user_agent: str):
         return "mobile", browser, False
 
     return "desktop", browser, False
-
 
 class RateLimiter:
     def __init__(self):
