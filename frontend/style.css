@@ -2,7 +2,7 @@
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Surfaces */
+  /* Surfaces & Glassmorphism */
   --bg-canvas: #f8fafc;
   --bg-mesh: 
     radial-gradient(at 0% 0%, rgba(199, 210, 254, 0.55) 0px, transparent 50%),
@@ -34,7 +34,7 @@
   --text-dim: #94a3b8;
   --text-light: #94a3b8;
 
-  /* Accent Palettes */
+  /* Gradients */
   --grad-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #06b6d4 100%);
   --grad-primary-hover: linear-gradient(135deg, #4338ca 0%, #6d28d9 50%, #0891b2 100%);
   --grad-azure: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
@@ -89,6 +89,7 @@ html, body {
   scroll-behavior: smooth;
 }
 
+/* Sidebar Navigation */
 .sidebar {
   width: 275px;
   background: rgba(255, 255, 255, 0.76);
@@ -373,6 +374,7 @@ html, body {
   transform: rotate(180deg);
 }
 
+/* Page Headers */
 .glass-header {
   display: flex;
   justify-content: space-between;
@@ -418,7 +420,7 @@ html, body {
   gap: 0.85rem;
 }
 
-/* Primary Glass Button */
+/* Action Buttons */
 .btn-glass {
   display: inline-flex;
   align-items: center;
@@ -443,7 +445,6 @@ html, body {
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
 }
 
-/* Light Accent Button (for Import CSV & Link Analytics Export) */
 .btn-glass-light {
   display: inline-flex;
   align-items: center;
@@ -478,7 +479,6 @@ html, body {
   color: #4f46e5;
 }
 
-/* Gradient Primary Button */
 .btn-gradient {
   display: inline-flex;
   align-items: center;
@@ -537,6 +537,7 @@ html, body {
   transition: box-shadow 0.25s ease, transform 0.25s ease;
 }
 
+/* Metric Cards */
 .stats-ribbon {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -615,6 +616,7 @@ html, body {
   border: 1px solid rgba(99, 102, 241, 0.22); 
 }
 
+/* Quick Action Bar */
 .quick-bar {
   display: flex;
   gap: 1rem;
@@ -648,7 +650,7 @@ html, body {
   color: var(--text-light); 
 }
 
-/* Wave Graph ki width kam ki gayi hai taaki Rankings card ko khuli jagah mile */
+/* Dashboard Analytics Grid */
 .dashboard-split {
   display: grid !important;
   grid-template-columns: minmax(0, 1.15fr) minmax(380px, 1fr) !important;
@@ -656,7 +658,6 @@ html, body {
   align-items: stretch !important;
 }
 
-/* Link Name truncate na ho aur clear dikhe */
 .top-link-meta-box {
   display: flex !important;
   flex-direction: column !important;
@@ -729,6 +730,7 @@ html, body {
   border-radius: 999px; 
 }
 
+/* Interactive SVG Charts */
 .chart-stage {
   position: relative;
   width: 100%;
@@ -802,7 +804,6 @@ html, body {
   color: #38bdf8; 
 }
 
-/* Mathematically Centered Chart Labels */
 .chart-labels-row {
   position: relative !important;
   width: 100% !important;
@@ -827,6 +828,7 @@ html, body {
   pointer-events: none;
 }
 
+/* Spotlight Card */
 .spotlight-box { 
   display: flex; 
   flex-direction: column; 
@@ -985,6 +987,7 @@ html, body {
   text-decoration: underline; 
 }
 
+/* Distribution Breakdowns */
 .breakdown-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1035,6 +1038,7 @@ html, body {
 .grad-violet { background: var(--grad-violet); }
 .grad-emerald { background: var(--grad-emerald); }
 
+/* Table Components */
 .table-wrapper-box { 
   padding: 1.75rem; 
 }
@@ -1325,7 +1329,7 @@ tr.selected-row {
   border-left: 4px solid #6366f1;
 }
 
-/* 3-Column Marketing Form */
+/* Campaign Views */
 .campaign-create-form {
   display: grid;
   grid-template-columns: 2fr 1.2fr auto;
@@ -1398,6 +1402,7 @@ tr.selected-row {
   border-top: 1px solid rgba(226, 232, 240, 0.8);
 }
 
+/* Link Details Panel */
 .details-hero {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(243, 232, 255, 0.6) 100%);
 }
@@ -1474,6 +1479,7 @@ tr.selected-row {
   display: block; 
 }
 
+/* Modals & Slide-over Drawers */
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -1700,6 +1706,7 @@ tr.selected-row {
   font-family: var(--font-mono); 
 }
 
+/* Toast Notifications */
 .toast-bubble {
   position: fixed;
   bottom: 2rem;
@@ -1747,7 +1754,7 @@ tr.selected-row {
   font-weight: 500; 
 }
 
-/* About Us Hero & Paragraph Alignment */
+/* About Us Section */
 .about-hero-box { 
   padding: 2.75rem 2.5rem; 
   max-width: 1040px; 
@@ -1873,7 +1880,7 @@ tr.selected-row {
   background: rgba(99, 102, 241, 0.6) !important;
 }
 
-/* Custom Dropdown Component */
+/* Custom Select Dropdowns */
 .custom-dropdown-box {
   position: relative;
   width: 230px;
@@ -1981,7 +1988,7 @@ tr.selected-row {
   border-radius: 10px;
 }
 
-/* Manage Links Sub-Tabs */
+/* Manage Links Sub-navigation */
 .manage-subtabs-nav {
   display: inline-flex;
   background: rgba(241, 245, 249, 0.85);
@@ -2035,7 +2042,7 @@ tr.selected-row {
   align-items: stretch !important;
 }
 
-/* Responsive Breakpoints */
+/* Responsive Styles */
 @media (max-width: 1200px) {
   .dashboard-split {
     grid-template-columns: 1fr !important;
@@ -2337,7 +2344,7 @@ tr.selected-row {
   }
 }
 
-/* Light Emerald Gradient for Export CSV */
+/* Button Variants */
 .btn-light-export {
   display: inline-flex;
   align-items: center;
@@ -2368,8 +2375,6 @@ tr.selected-row {
   stroke-width: 2.2;
 }
 
-/* Light Azure/Sky Gradient for Import CSV */
-/* Light Warm Orange/Amber Gradient for Import CSV */
 .btn-light-import {
   display: inline-flex;
   align-items: center;
@@ -2400,9 +2405,7 @@ tr.selected-row {
   stroke-width: 2.2;
 }
 
-/* ====================================================
-   ULTRA-CLEAN TOP PERFORMING LINKS LEADERBOARD
-   ==================================================== */
+/* Leaderboard */
 .top-links-card {
   display: flex !important;
   flex-direction: column !important;
@@ -2419,7 +2422,6 @@ tr.selected-row {
   margin: 0.9rem 0 !important;
 }
 
-/* Individual Link Row Card */
 .top-link-item {
   display: flex !important;
   align-items: center !important;
@@ -2441,18 +2443,18 @@ tr.selected-row {
   border-color: #818cf8 !important;
 }
 
-/* Rank Glow Borders */
 .top-link-item.border-gold { 
   border-left: 4.5px solid #f59e0b !important; 
 }
+
 .top-link-item.border-silver { 
   border-left: 4.5px solid #94a3b8 !important; 
 }
+
 .top-link-item.border-bronze { 
   border-left: 4.5px solid #d97706 !important; 
 }
 
-/* Medal Avatar Badge */
 .top-link-badge {
   width: 34px !important;
   height: 34px !important;
@@ -2467,7 +2469,6 @@ tr.selected-row {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
 }
 
-/* Meta Text Wrap */
 .top-link-meta-box {
   display: flex !important;
   flex-direction: column !important;
@@ -2494,7 +2495,6 @@ tr.selected-row {
   display: block !important;
 }
 
-/* Right Clicks & Copy Button Group */
 .top-link-right {
   display: flex !important;
   align-items: center !important;
@@ -2523,7 +2523,6 @@ tr.selected-row {
   margin-left: 2px !important;
 }
 
-/* Bottom Highlight Note */
 .top-links-footer-note {
   font-size: 0.76rem !important;
   font-weight: 600 !important;
