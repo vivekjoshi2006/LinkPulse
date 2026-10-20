@@ -385,7 +385,7 @@
         <!-- 1. Active Short Links Tab Pane -->
         <div class="manage-subpane active" id="subtab-active-links">
           
-          <!-- TOP ROW: Spotlight (Left) + Bar Graph (Right) -->
+          <!-- TOP ROW: Spotlight (Left) + Bar Graph (Right) - Perfect Side-by-Side -->
           <div class="active-links-split" style="margin-bottom: 1.5rem;">
             
             <!-- Spotlight Card -->
@@ -412,32 +412,32 @@
                   <button class="btn-spotlight-copy" id="spotlightCopyBtn">Copy</button>
                 </div>
               </div>
-             <div class="spotlight-qr-row">
+              
+              <!-- QR with 2 Modern Styled Buttons on RHS -->
+              <div class="spotlight-qr-row">
                 <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
-                <div class="spotlight-qr-actions">
-                  <button class="btn-qr-action btn-qr-download" id="spotlightDownloadQr">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
+                <div class="spotlight-qr-btn-col">
+                  <button type="button" class="btn-spotlight-action" id="spotlightDownloadQr" title="Download QR PNG">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                     <span>Download PNG</span>
                   </button>
-
-                  <button class="btn-qr-action btn-qr-share" id="spotlightShareBtn">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                      <polyline points="16 6 12 2 8 6"/>
-                      <line x1="12" y1="2" x2="12" y2="15"/>
+                  <button type="button" class="btn-spotlight-action btn-spotlight-share" id="spotlightShareBtn" title="Share via WhatsApp, Gmail">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                      <polyline points="16 6 12 2 8 6"></polyline>
+                      <line x1="12" y1="2" x2="12" y2="15"></line>
                     </svg>
                     <span>Share Link</span>
                   </button>
                 </div>
               </div>
             </div>
-            </div>
 
-            <!-- Bar Columns Graph -->
+            <!-- Bar Columns Graph (Beside Spotlight) -->
             <div class="glass-container chart-box">
               <div class="box-head-flex">
                 <div>
@@ -467,7 +467,7 @@
               </div>
             </div>
 
-          </div> <!-- /.active-links-split -->
+          </div> <!-- /.active-links-split CLOSED HERE -->
 
           <!-- BOTTOM ROW: Full Width Table -->
           <div class="glass-container table-wrapper-box">
@@ -1007,15 +1007,22 @@
 
       if ($('shareModalUrl')) $('shareModalUrl').value = url;
       
+      // WhatsApp Direct Link
       if ($('shareWhatsappBtn')) {
         $('shareWhatsappBtn').href = `https://api.whatsapp.com/send?text=${title}%20${encUrl}`;
       }
+
+      // 👉 Direct Gmail Web Tab (No blank mailto screen)
       if ($('shareGmailBtn')) {
-        $('shareGmailBtn').href = `mailto:?subject=${title}&body=Hey,%20check%20out%20this%20link:%20${encUrl}`;
+        $('shareGmailBtn').href = `https://mail.google.com/mail/?view=cm&fs=1&su=${title}&body=Check%20out%20this%20link:%20${encUrl}`;
       }
+
+      // Telegram
       if ($('shareTelegramBtn')) {
         $('shareTelegramBtn').href = `https://t.me/share/url?url=${encUrl}&text=${title}`;
       }
+
+      // Twitter / X
       if ($('shareTwitterBtn')) {
         $('shareTwitterBtn').href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${title}`;
       }
@@ -2278,7 +2285,7 @@
       if (isSyncing) return; // Pichli request chal rahi ho to wait karega (No lag/freeze)
       isSyncing = true;
       try {
-        await Promise.all([refreshDashboard(), loadLinks()]);
+        await Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
       } catch (e) {
         // ignore background sync errors
       } finally {
