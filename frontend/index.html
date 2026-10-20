@@ -237,7 +237,10 @@
       </header>
 
       <!-- Overview -->
+     <!-- Overview Tab -->
       <section class="tab-pane active" id="tab-overview">
+        
+        <!-- 1. Stats Ribbon (4 Cards) -->
         <div class="stats-ribbon">
           <div class="stat-card tint-azure">
             <div class="stat-header"><span class="stat-title">Total Redirects</span></div>
@@ -261,6 +264,7 @@
           </div>
         </div>
 
+        <!-- 2. Quick Bar -->
         <div class="glass-container quick-bar">
           <div class="quick-input-group">
             <input type="text" id="quickUrlInput" class="quick-input-field"
@@ -269,42 +273,71 @@
           <button class="btn-gradient" id="quickShortenBtn"><span>Instant Shorten</span></button>
         </div>
 
-        <div class="glass-container chart-box" style="margin-bottom: 1.5rem;">
-          <div class="box-head-flex">
-            <div>
-              <span class="section-tag-soft">Activity Dynamics</span>
-              <h3 class="box-title">Click & Redirect Volume</h3>
-              <p class="box-sub">Rolling 7-day timeline (Yesterday, Today, and Upcoming).</p>
+        <!-- 3. Dashboard Split: Graph (LHS) + Top Performing Links (RHS) -->
+        <div class="dashboard-split" style="margin-bottom: 1.85rem;">
+          
+          <!-- LHS: 7-Day Trend Chart -->
+          <div class="glass-container chart-box" style="margin-bottom: 0;">
+            <div class="box-head-flex">
+              <div>
+                <span class="section-tag-soft">Activity Dynamics</span>
+                <h3 class="box-title">Click & Redirect Volume</h3>
+                <p class="box-sub">Rolling 7-day timeline (Yesterday, Today, and Upcoming).</p>
+              </div>
+              <span class="chip-accent">Live</span>
             </div>
-            <span class="chip-accent">Live</span>
+
+            <div class="chart-stage" id="chartStage">
+              <div class="chart-tooltip" id="chartTooltip">
+                <span class="tooltip-date" id="ttDate">--</span>
+                <span class="tooltip-val" id="ttClicks">0 clicks</span>
+              </div>
+              <svg id="trendSvg" viewBox="0 0 700 230" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.38" />
+                    <stop offset="100%" stop-color="#a855f7" stop-opacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#818cf8" />
+                    <stop offset="100%" stop-color="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                <g id="gridLinesGroup"></g>
+                <path id="chartAreaPath" fill="url(#areaGlow)" d=""></path>
+                <path id="chartLinePath" fill="none" stroke="url(#barGlow)" stroke-width="3.5" stroke-linecap="round"
+                  stroke-linejoin="round" d=""></path>
+                <g id="dotsGroup"></g>
+              </svg>
+              <div class="chart-labels-row" id="chartDateRow"></div>
+            </div>
           </div>
 
-          <div class="chart-stage" id="chartStage">
-            <div class="chart-tooltip" id="chartTooltip">
-              <span class="tooltip-date" id="ttDate">--</span>
-              <span class="tooltip-val" id="ttClicks">0 clicks</span>
+          <!-- RHS: Top Performing Links Leaderboard -->
+          <div class="glass-container top-links-card" style="margin-bottom: 0;">
+            <div class="box-head-flex">
+              <div>
+                <span class="section-tag-soft">Realtime Velocity</span>
+                <h3 class="box-title">Top Performing Links</h3>
+                <p class="box-sub">Ranked by verified live redirects.</p>
+              </div>
+              <span class="chip-active">Rankings</span>
             </div>
-            <svg id="trendSvg" viewBox="0 0 700 230" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="areaGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#6366f1" stop-opacity="0.38" />
-                  <stop offset="100%" stop-color="#a855f7" stop-opacity="0.0" />
-                </linearGradient>
-                <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#818cf8" />
-                  <stop offset="100%" stop-color="#3b82f6" />
-                </linearGradient>
-              </defs>
-              <g id="gridLinesGroup"></g>
-              <path id="chartAreaPath" fill="url(#areaGlow)" d=""></path>
-              <path id="chartLinePath" fill="none" stroke="url(#barGlow)" stroke-width="3.5" stroke-linecap="round"
-                stroke-linejoin="round" d=""></path>
-              <g id="dotsGroup"></g>
-            </svg>
-            <div class="chart-labels-row" id="chartDateRow"></div>
-          </div>
-        </div>
 
+            <div class="top-links-stack" id="topLinksList">
+              <div class="empty-top-links">
+                <p>Loading leaderboard...</p>
+              </div>
+            </div>
+
+            <div class="top-links-footer-note" id="topPerformerNote">
+              <span>Shorten links to see real-time performance rank.</span>
+            </div>
+          </div>
+
+        </div> <!-- /.dashboard-split (Properly Closed Here) -->
+
+        <!-- 4. Breakdown Grid (Referrers, Devices, Countries - NEVER HIDDEN) -->
         <div class="breakdown-grid">
           <div class="glass-container breakdown-card">
             <h4 class="breakdown-title">Top Traffic Referrers</h4>
@@ -325,6 +358,7 @@
             </div>
           </div>
         </div>
+
       </section>
 
       <!-- Manage Links -->
