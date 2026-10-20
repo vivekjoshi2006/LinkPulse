@@ -5,13 +5,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-
 def _get_int(key: str, default: int) -> int:
     try:
         return int(os.getenv(key, default))
     except (TypeError, ValueError):
         return default
-
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-only-change-this-secret-before-deploying"
