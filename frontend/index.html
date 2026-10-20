@@ -1126,6 +1126,11 @@
         headers['Content-Type'] = 'application/json';
       }
 
+      const isGet = !opts.method || opts.method === 'GET';
+      const url = isGet 
+        ? (path.includes('?') ? `${path}&_t=${Date.now()}` : `${path}?_t=${Date.now()}`)
+        : path;
+
       const res = await fetch(path, { ...opts, headers, body });
       const data = await res.json().catch(() => null);
 
