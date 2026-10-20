@@ -899,7 +899,7 @@
 
       toast(`Inspecting: ${link.title || link.short_code}`);
     };
-    
+
     const $ = id => document.getElementById(id);
     window.$ = $;
 
@@ -1510,27 +1510,52 @@
     }
 
     async function loadLinks() {
-      try {
+    try {
         const data = await api('/api/links');
         cachedLinks = Array.isArray(data) ? data : [];
-        renderLinks(filteredLinks());
-        renderTopLinksCard(); 
 
-        const activeLink = cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
-        if (cachedLinks.length > 0) {
-          updateSpotlight(activeLink);
-          if (!selectedLinkId || !cachedLinks.some(l => l.id === selectedLinkId)) {
-            inspectLink(activeLink);
-          }
-        } else {
-          inspectLink(null);
-          updateSpotlight(null);
+        // 1. (Divyanshu ka logic) Inspected Link ka count live update karega
+        if (selectedLinkId) {
+            const selectedLink = cachedLinks.find(
+                link => Number(link.id) === Number(selectedLinkId)
+            );
+
+            if (selectedLink && $('detClicks')) {
+                $('detClicks').textContent =
+                    Number(selectedLink.click_count || 0).toLocaleString();
+            }
         }
-      } catch (err) {
+
+        // 2. Tables render karein
+        renderLinks(filteredLinks());
+
+        // 3. RHS Top Performing Leaderboard ko real-time update karein
+        if (typeof renderTopLinksCard === 'function') {
+            renderTopLinksCard();
+        }
+
+        // 4. Spotlight aur inspection state maintain karein
+        const activeLink =
+            cachedLinks.find(l => l.status === 'active') ||
+            cachedLinks[0];
+
+        if (cachedLinks.length > 0) {
+            updateSpotlight(activeLink);
+
+            if (
+                !selectedLinkId ||
+                !cachedLinks.some(l => l.id === selectedLinkId)
+            ) {
+                inspectLink(activeLink);
+            }
+        } else {
+            inspectLink(null);
+            updateSpotlight(null);
+        }
+    } catch (err) {
         console.error('Failed to load links:', err);
-        toast(err.message);
-      }
     }
+}
 
     function filteredLinks() {
       if (!Array.isArray(cachedLinks)) return [];
@@ -2108,7 +2133,7 @@
     setInterval(() => {
       refreshDashboard();
       loadLinks();
-    }, 25000);
+    }, 3000);
   </script>
 </body>
 
