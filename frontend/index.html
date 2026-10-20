@@ -1098,10 +1098,15 @@
         const iso = `${year}-${month}-${day}`;
 
         let label = '';
-        if (offset === -1) label = 'Yesterday';
-        else if (offset === 0) label = 'Today';
-        else if (offset === 1) label = 'Tomorrow';
-        else label = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+        if (offset === -1) {
+          label = 'Yesterday';
+        } else if (offset === 0) {
+          label = 'Today';
+        } else {
+          // 👉 Tomorrow hatakar kal ki actual date (e.g., 21 Wed)
+          const weekdayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
+          label = `${d.getDate()} ${weekdayStr}`;
+        }
 
         points.push({
           date: iso,
@@ -1111,7 +1116,7 @@
       }
       return points;
     }
-
+    
     function renderTrendChart(series) {
       const data = sanitizeDailySeries(series);
       cachedChartData = data;
