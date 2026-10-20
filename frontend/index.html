@@ -1102,7 +1102,7 @@
       }
     };
 
-    function sanitizeDailySeries(raw) {
+   function sanitizeDailySeries(raw) {
       const counts = {};
       if (Array.isArray(raw)) {
         raw.forEach(r => {
@@ -1111,7 +1111,8 @@
       }
 
       const points = [];
-      for (let offset = -1; offset <= 5; offset++) {
+      // 👉 Loop ab -5 (5 din pehle) se lekar +1 (Tomorrow) tak chalega:
+      for (let offset = -5; offset <= 1; offset++) {
         const d = new Date();
         d.setDate(d.getDate() + offset);
 
@@ -1125,8 +1126,10 @@
           label = 'Yesterday';
         } else if (offset === 0) {
           label = 'Today';
+        } else if (offset === 1) {
+          label = 'Tomorrow';
         } else {
-          // 👉 Tomorrow hatakar kal ki actual date (e.g., 21 Wed)
+          // 5, 4, 3, 2 din pehle ki date (e.g. 15 Thu, 16 Fri, 17 Sat, 18 Sun)
           const weekdayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
           label = `${d.getDate()} ${weekdayStr}`;
         }
@@ -2129,6 +2132,7 @@
 
     $('inpExpiry').min = new Date().toISOString().slice(0, 10);
 
+    // Initial Load
     Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
 
     // 2-Second Super Fast Realtime Sync
