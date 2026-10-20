@@ -2130,10 +2130,20 @@
     $('inpExpiry').min = new Date().toISOString().slice(0, 10);
 
     Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
-    setInterval(() => {
-      refreshDashboard();
-      loadLinks();
-    }, 3000);
+
+    // 2-Second Super Fast Realtime Sync
+    let isSyncing = false;
+    setInterval(async () => {
+      if (isSyncing) return; // Pichli request chal rahi ho to wait karega (No lag/freeze)
+      isSyncing = true;
+      try {
+        await Promise.all([refreshDashboard(), loadLinks()]);
+      } catch (e) {
+        // ignore background sync errors
+      } finally {
+        isSyncing = false;
+      }
+    }, 2000); // 👈 2000ms (2 seconds)
   </script>
 </body>
 
