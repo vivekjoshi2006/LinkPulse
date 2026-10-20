@@ -8,7 +8,11 @@ from datetime import datetime, timedelta
 from flask import Flask, Response, jsonify, redirect, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from config import Config
+try:
+    from app_config import Config
+except ImportError:
+    from config import Config
+
 from database import close_db, get_db, get_engine, initialize_database, query_all, query_one
 from helpers import (
     ApiError, RateLimiter, anonymize_ip, classify_user_agent,
@@ -959,7 +963,6 @@ def import_csv():
     if not raw.strip():
         raise ApiError(400, "empty_file", "The uploaded CSV file is empty.")
 
-    # Multi-encoding decode (handles UTF-8 with BOM, UTF-16, Latin-1, Windows-1252)
     text = None
     for enc in ("utf-8-sig", "utf-16", "utf-8", "latin-1", "cp1252"):
         try:
@@ -981,7 +984,6 @@ def import_csv():
     if not lines:
         raise ApiError(400, "empty_file", "The uploaded CSV file contains no content.")
 
-    # Auto-detect delimiter (comma, semicolon, tab, pipe)
     delimiter = ","
     try:
         sample = "\n".join(lines[:10])
@@ -1021,7 +1023,6 @@ def import_csv():
         elif col in title_keywords:
             title_col_idx = idx
 
-    # If first row contains an actual URL, treat it as data (no header present)
     first_row_is_header = False
     if dest_col_idx != -1:
         first_cell = str(csv_reader[0][dest_col_idx]).strip().lower()
@@ -1054,7 +1055,6 @@ def import_csv():
             if title_col_idx != -1 and title_col_idx < len(r):
                 title_raw = str(r[title_col_idx]).strip().strip("\"'")
 
-        # Fallback: scan row columns for any URL or domain pattern
         if not dest_raw:
             for cell in r:
                 c_str = str(cell).strip().strip("\"'<>")
@@ -1081,7 +1081,6 @@ def import_csv():
             errors.append(f"Row {r_idx}: No URL found")
             continue
 
-        # Auto-prefix https:// if missing
         if not re.match(r"^https?://", dest_raw, re.IGNORECASE):
             if "." in dest_raw and not dest_raw.startswith(("/", "#", "mailto:", "javascript:")):
                 dest_raw = f"https://{dest_raw}"
