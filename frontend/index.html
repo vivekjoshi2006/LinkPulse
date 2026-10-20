@@ -15,8 +15,6 @@
 
 <body>
   <div class="app-layout">
-
-    <!-- Account Dashboard -->
     <div class="drawer-backdrop" id="accountModal">
       <div class="drawer-panel" style="max-width: 520px;">
         <div class="drawer-header">
@@ -88,7 +86,6 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
     <aside class="sidebar" id="mainSidebar">
       <button class="btn-edge-toggle" id="toggleSidebarBtn" title="Collapse / Expand Sidebar">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -197,13 +194,13 @@
       </div>
     </aside>
 
-    <!-- Main Viewport -->
     <main class="main-viewport">
       <header class="glass-header">
         <div class="header-left">
           <div class="header-tag" id="pageTag">Telemetry Workspace</div>
           <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
-          <p class="header-subtitle" id="pageSub">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
+          <p class="header-subtitle" id="pageSub">Real-time edge redirects, SSRF protection & device
+            intelligence.</p>
         </div>
         <div class="header-actions" id="headerActions">
           <button class="btn-light-export" id="exportCsvBtn">
@@ -236,10 +233,7 @@
         </div>
       </header>
 
-      <!-- Overview Tab -->
       <section class="tab-pane active" id="tab-overview">
-        
-        <!-- 1. Stats Ribbon (4 Cards) -->
         <div class="stats-ribbon">
           <div class="stat-card tint-azure">
             <div class="stat-header"><span class="stat-title">Total Redirects</span></div>
@@ -263,7 +257,6 @@
           </div>
         </div>
 
-        <!-- 2. Quick Bar -->
         <div class="glass-container quick-bar">
           <div class="quick-input-group">
             <input type="text" id="quickUrlInput" class="quick-input-field"
@@ -272,10 +265,7 @@
           <button class="btn-gradient" id="quickShortenBtn"><span>Instant Shorten</span></button>
         </div>
 
-        <!-- 3. Dashboard Split: Graph (LHS) + Top Performing Links (RHS) -->
         <div class="dashboard-split" style="margin-bottom: 1.85rem;">
-          
-          <!-- LHS: 7-Day Trend Chart -->
           <div class="glass-container chart-box" style="margin-bottom: 0;">
             <div class="box-head-flex">
               <div>
@@ -312,7 +302,6 @@
             </div>
           </div>
 
-          <!-- RHS: Top Performing Links Leaderboard -->
           <div class="glass-container top-links-card" style="margin-bottom: 0;">
             <div class="box-head-flex">
               <div>
@@ -333,10 +322,8 @@
               <span>Shorten links to see real-time performance rank.</span>
             </div>
           </div>
+        </div>
 
-        </div> <!-- /.dashboard-split -->
-
-        <!-- 4. Breakdown Grid (Referrers, Devices, Countries) -->
         <div class="breakdown-grid">
           <div class="glass-container breakdown-card">
             <h4 class="breakdown-title">Top Traffic Referrers</h4>
@@ -357,19 +344,19 @@
             </div>
           </div>
         </div>
-
       </section>
 
-      <!-- Manage Links -->
       <section class="tab-pane" id="tab-manage-links">
         <div class="manage-subtabs-nav">
-          <button class="manage-subtab-btn active" id="btnSubtabActiveLinks" data-subtab="subtab-active-links" title="Active Short Links & QR Code Downloader">
+          <button class="manage-subtab-btn active" id="btnSubtabActiveLinks" data-subtab="subtab-active-links"
+            title="Active Short Links & QR Code Downloader">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
             <span>Active Short Links</span>
           </button>
-          <button class="manage-subtab-btn" id="btnSubtabAllLinks" data-subtab="subtab-all-links" title="All Managed Short Links">
+          <button class="manage-subtab-btn" id="btnSubtabAllLinks" data-subtab="subtab-all-links"
+            title="All Managed Short Links">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="8" y1="6" x2="21" y2="6"></line>
               <line x1="8" y1="12" x2="21" y2="12"></line>
@@ -382,13 +369,8 @@
           </button>
         </div>
 
-        <!-- 1. Active Short Links Tab Pane -->
         <div class="manage-subpane active" id="subtab-active-links">
-          
-          <!-- TOP ROW: Spotlight (Left) + Bar Graph (Right) - Perfect Side-by-Side -->
           <div class="active-links-split" style="margin-bottom: 1.5rem;">
-            
-            <!-- Spotlight Card -->
             <div class="glass-container spotlight-box" id="activeShortLinksBox">
               <div class="box-head-flex">
                 <div>
@@ -412,21 +394,23 @@
                   <button class="btn-spotlight-copy" id="spotlightCopyBtn">Copy</button>
                 </div>
               </div>
-              
-              <!-- QR with 2 Modern Styled Buttons on RHS -->
+
               <div class="spotlight-qr-row">
                 <div id="spotlightQrBox" class="spotlight-qr-canvas"></div>
                 <div class="spotlight-qr-btn-col">
                   <button type="button" class="btn-spotlight-action" id="spotlightDownloadQr" title="Download QR PNG">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"
+                      stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                       <polyline points="7 10 12 15 17 10"></polyline>
                       <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                     <span>Download PNG</span>
                   </button>
-                  <button type="button" class="btn-spotlight-action btn-spotlight-share" id="spotlightShareBtn" title="Share via WhatsApp, Gmail">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-spotlight-action btn-spotlight-share" id="spotlightShareBtn"
+                    title="Share via WhatsApp, Gmail">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"
+                      stroke-linecap="round" stroke-linejoin="round">
                       <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
                       <polyline points="16 6 12 2 8 6"></polyline>
                       <line x1="12" y1="2" x2="12" y2="15"></line>
@@ -437,7 +421,6 @@
               </div>
             </div>
 
-            <!-- Bar Columns Graph (Beside Spotlight) -->
             <div class="glass-container chart-box">
               <div class="box-head-flex">
                 <div>
@@ -466,10 +449,8 @@
                 <div class="chart-labels-row" id="chartDateRow2"></div>
               </div>
             </div>
+          </div>
 
-          </div> <!-- /.active-links-split CLOSED HERE -->
-
-          <!-- BOTTOM ROW: Full Width Table -->
           <div class="glass-container table-wrapper-box">
             <div class="table-top-bar">
               <div>
@@ -502,10 +483,8 @@
               </table>
             </div>
           </div>
-
         </div>
 
-        <!-- 2. All Managed Links Tab Pane -->
         <div class="manage-subpane" id="subtab-all-links">
           <div class="glass-container table-wrapper-box">
             <div class="table-top-bar">
@@ -547,7 +526,6 @@
         </div>
       </section>
 
-      <!-- Link Analytics -->
       <section class="tab-pane" id="tab-details">
         <div class="glass-container details-hero" style="margin-bottom: 1.5rem;">
           <div class="details-head-split">
@@ -621,7 +599,6 @@
         </div>
       </section>
 
-      <!-- Campaigns -->
       <section class="tab-pane" id="tab-campaigns">
         <div class="glass-container campaign-box">
           <div class="box-head-flex">
@@ -644,7 +621,6 @@
         </div>
       </section>
 
-      <!-- About Us -->
       <section class="tab-pane" id="tab-about">
         <div class="glass-container about-hero-box">
           <div class="hackathon-tag-pill">
@@ -661,7 +637,9 @@
             Engineered by <span class="team-gradient-txt">Code with Caos</span>
           </h2>
           <p class="about-desc-text">
-            Built with passion as an innovative Hackathon project to deliver real-time edge link governance, <span style="white-space: nowrap;">sub-40ms</span> atomic redirection, and privacy-shielded telemetry without slowing users down.
+            Built with passion as an innovative Hackathon project to deliver real-time edge link governance, <span
+              style="white-space: nowrap;">sub-40ms</span> atomic redirection, and privacy-shielded telemetry without
+            slowing users down.
           </p>
 
           <div class="about-divider"></div>
@@ -702,11 +680,8 @@
           </div>
         </div>
       </section>
-
     </main>
   </div>
-
-  <!-- Create Link Drawer -->
   <div class="drawer-backdrop" id="linkDrawerBackdrop">
     <div class="drawer-panel" id="linkDrawer" style="max-width: 680px;">
       <div class="drawer-header">
@@ -717,7 +692,8 @@
         </div>
         <button class="btn-drawer-close" id="closeDrawerBtn">&times;</button>
       </div>
-
+      code
+      Code
       <form id="createLinkForm" class="drawer-form-stack">
         <input type="hidden" id="editLinkId" value="" />
 
@@ -769,15 +745,15 @@
             </div>
           </div>
 
-          <!-- Password Eye Icon -->
           <div class="form-field-group">
             <label for="inpPassword">Password Protection</label>
             <div style="position: relative; width: 100%;">
-              <input type="password" id="inpPassword" class="glass-input-styled" 
-                placeholder="Leave empty for public" style="padding-right: 2.85rem;" />
+              <input type="password" id="inpPassword" class="glass-input-styled" placeholder="Leave empty for public"
+                style="padding-right: 2.85rem;" />
               <button type="button" id="btnTogglePasswordEye" title="Show / Hide Password"
                 style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: #64748b; padding: 4px; display: flex; align-items: center; justify-content: center;">
-                <svg id="eyeIcon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg id="eyeIcon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
                 </svg>
@@ -803,12 +779,11 @@
       </form>
     </div>
   </div>
-
-  <!-- Campaign Details Modal -->
   <div class="drawer-backdrop" id="campaignDetailsModal">
     <div class="drawer-panel"
       style="max-width: 610px; min-height: 540px !important; padding: 2rem; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);">
-
+      code
+      Code
       <div class="drawer-header"
         style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem;">
         <div>
@@ -858,8 +833,8 @@
           <div class="custom-dropdown-box" id="customLinkDropdown">
             <button type="button" class="custom-dropdown-trigger" id="customDropdownBtn">
               <span id="customDropdownLabel">Select a link...</span>
-              <svg class="dropdown-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none"
-                stroke="currentColor" stroke-width="2.5">
+              <svg class="dropdown-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                stroke-width="2.5">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
@@ -879,8 +854,6 @@
 
     </div>
   </div>
-
-  <!-- QR Code Modal -->
   <div class="modal-overlay" id="qrModal">
     <div class="modal-glass-container">
       <button class="modal-close-cross" id="closeQrBtn">&times;</button>
@@ -905,16 +878,15 @@
       </div>
     </div>
   </div>
-
-  <!-- Direct Share Modal (WhatsApp, Gmail, Telegram, X) -->
-  <!-- Direct Share Modal with Official Brand SVGs -->
   <div class="modal-overlay" id="shareModal">
     <div class="modal-glass-container" style="max-width: 440px; text-align: left;">
       <button class="modal-close-cross" onclick="$('shareModal').classList.remove('active')">&times;</button>
-      
+      code
+      Code
       <div style="display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.25rem;">
         <div class="modal-icon-badge" style="margin: 0; width: 42px; height: 42px;">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
             <polyline points="16 6 12 2 8 6"></polyline>
             <line x1="12" y1="2" x2="12" y2="15"></line>
@@ -927,50 +899,54 @@
       </div>
 
       <div style="margin-bottom: 1.25rem;">
-        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">LINK URL</span>
+        <span
+          style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">LINK
+          URL</span>
         <div style="display: flex; gap: 0.5rem;">
-          <input type="text" id="shareModalUrl" class="field-slug-input" readonly style="font-size: 0.82rem; padding: 0.6rem 0.85rem;" />
-          <button class="btn-spotlight-copy" onclick="copyLink($('shareModalUrl').value)" style="padding: 0.6rem 1rem;">Copy</button>
+          <input type="text" id="shareModalUrl" class="field-slug-input" readonly
+            style="font-size: 0.82rem; padding: 0.6rem 0.85rem;" />
+          <button class="btn-spotlight-copy" onclick="copyLink($('shareModalUrl').value)"
+            style="padding: 0.6rem 1rem;">Copy</button>
         </div>
       </div>
 
-      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.65rem;">SHARE DIRECTLY</span>
+      <span
+        style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.65rem;">SHARE
+        DIRECTLY</span>
       <div class="share-options-grid">
-        <!-- WhatsApp -->
         <a id="shareWhatsappBtn" target="_blank" rel="noopener" class="share-btn-tile share-whatsapp">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.63C8.75 21.41 10.37 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.5C9.36 7.5 9.09 7.57 8.86 7.82C8.63 8.07 8 8.66 8 9.86C8 11.06 8.88 12.22 9 12.39C9.13 12.56 10.73 15.03 13.19 16.09C13.78 16.35 14.23 16.5 14.59 16.62C15.18 16.81 15.72 16.78 16.14 16.72C16.62 16.65 17.61 16.12 17.81 15.55C18.01 14.97 18.01 14.48 17.95 14.38C17.89 14.28 17.74 14.22 17.51 14.11C17.28 14 16.15 13.44 15.94 13.37C15.74 13.29 15.59 13.25 15.44 13.48C15.3 13.7 14.88 14.2 14.75 14.34C14.62 14.48 14.5 14.5 14.27 14.39C14.04 14.28 13.3 14.04 12.43 13.26C11.75 12.65 11.29 11.9 11.16 11.68C11.04 11.45 11.15 11.33 11.26 11.22C11.37 11.11 11.5 10.94 11.62 10.8C11.74 10.66 11.78 10.56 11.86 10.4C11.94 10.24 11.9 10.1 11.84 9.99C11.78 9.87 11.33 8.76 11.14 8.31C10.96 7.87 10.77 7.93 10.63 7.92C10.5 7.92 10.35 7.91 10.2 7.91C10.05 7.91 9.8 7.97 9.53 7.5Z"/>
+            <path
+              d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.63C8.75 21.41 10.37 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.5C9.36 7.5 9.09 7.57 8.86 7.82C8.63 8.07 8 8.66 8 9.86C8 11.06 8.88 12.22 9 12.39C9.13 12.56 10.73 15.03 13.19 16.09C13.78 16.35 14.23 16.5 14.59 16.62C15.18 16.81 15.72 16.78 16.14 16.72C16.62 16.65 17.61 16.12 17.81 15.55C18.01 14.97 18.01 14.48 17.95 14.38C17.89 14.28 17.74 14.22 17.51 14.11C17.28 14 16.15 13.44 15.94 13.37C15.74 13.29 15.59 13.25 15.44 13.48C15.3 13.7 14.88 14.2 14.75 14.34C14.62 14.48 14.5 14.5 14.27 14.39C14.04 14.28 13.3 14.04 12.43 13.26C11.75 12.65 11.29 11.9 11.16 11.68C11.04 11.45 11.15 11.33 11.26 11.22C11.37 11.11 11.5 10.94 11.62 10.8C11.74 10.66 11.78 10.56 11.86 10.4C11.94 10.24 11.9 10.1 11.84 9.99C11.78 9.87 11.33 8.76 11.14 8.31C10.96 7.87 10.77 7.93 10.63 7.92C10.5 7.92 10.35 7.91 10.2 7.91C10.05 7.91 9.8 7.97 9.53 7.5Z" />
           </svg>
           <strong>WhatsApp</strong>
         </a>
-        <!-- Gmail -->
         <a id="shareGmailBtn" target="_blank" rel="noopener" class="share-btn-tile share-gmail">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            <path
+              d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
           </svg>
           <strong>Gmail</strong>
         </a>
-        <!-- Telegram -->
         <a id="shareTelegramBtn" target="_blank" rel="noopener" class="share-btn-tile share-telegram">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
           </svg>
           <strong>Telegram</strong>
         </a>
-        <!-- Twitter / X -->
         <a id="shareTwitterBtn" target="_blank" rel="noopener" class="share-btn-tile share-twitter">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            <path
+              d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
           </svg>
           <strong>Twitter / X</strong>
         </a>
       </div>
     </div>
   </div>
-
   <div class="toast-bubble" id="toastBox">Notification message</div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
   <script>
     const $ = id => document.getElementById(id);
     window.$ = $;
@@ -984,21 +960,22 @@
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[ch]));
 
-    // Helper: Ensure short link is reachable from local device or mobile
     function formatReachableUrl(url) {
       if (!url) return '';
-      if ((url.includes('127.0.0.1') || url.includes('localhost')) && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+      const { hostname, protocol, host } = window.location;
+      const isLoopback = url.includes('127.0.0.1') || url.includes('localhost');
+      const isClientExternal = hostname !== '127.0.0.1' && hostname !== 'localhost';
+
+      if (isLoopback && isClientExternal) {
         try {
-          const u = new URL(url);
-          return `${window.location.protocol}//${window.location.host}${u.pathname}`;
-        } catch (e) {
+          return `${protocol}//${host}${new URL(url).pathname}`;
+        } catch {
           return url;
         }
       }
       return url;
     }
 
-    // Direct WhatsApp / Gmail Share Opener
     function openShareModal(link) {
       if (!link) return;
       const url = formatReachableUrl(link.short_url || '');
@@ -1006,52 +983,27 @@
       const encUrl = encodeURIComponent(url);
 
       if ($('shareModalUrl')) $('shareModalUrl').value = url;
-      
-      // WhatsApp Direct Link
-      if ($('shareWhatsappBtn')) {
-        $('shareWhatsappBtn').href = `https://api.whatsapp.com/send?text=${title}%20${encUrl}`;
-      }
-
-      // 👉 Direct Gmail Web Tab (No blank mailto screen)
-      if ($('shareGmailBtn')) {
-        $('shareGmailBtn').href = `https://mail.google.com/mail/?view=cm&fs=1&su=${title}&body=Check%20out%20this%20link:%20${encUrl}`;
-      }
-
-      // Telegram
-      if ($('shareTelegramBtn')) {
-        $('shareTelegramBtn').href = `https://t.me/share/url?url=${encUrl}&text=${title}`;
-      }
-
-      // Twitter / X
-      if ($('shareTwitterBtn')) {
-        $('shareTwitterBtn').href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${title}`;
-      }
+      if ($('shareWhatsappBtn')) $('shareWhatsappBtn').href = `https://api.whatsapp.com/send?text=${title}%20${encUrl}`;
+      if ($('shareGmailBtn')) $('shareGmailBtn').href = `https://mail.google.com/mail/?view=cm&fs=1&su=${title}&body=Check%20out%20this%20link:%20${encUrl}`;
+      if ($('shareTelegramBtn')) $('shareTelegramBtn').href = `https://t.me/share/url?url=${encUrl}&text=${title}`;
+      if ($('shareTwitterBtn')) $('shareTwitterBtn').href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${title}`;
 
       $('shareModal')?.classList.add('active');
     }
 
-    // Global Row click handler for Top Links Card (Navigates to Link Analytics)
-    window.onTopLinkClick = function(linkId) {
-      const link = (cachedLinks || []).find(x => Number(x.id) === Number(linkId));
+    window.onTopLinkClick = function (linkId) {
+      const link = (cachedLinks || []).find(item => Number(item.id) === Number(linkId));
       if (!link) return;
 
       selectedLinkId = link.id;
       inspectLink(link);
       updateSpotlight(link);
 
-      const analyticsTabBtn = document.querySelector('.nav-tab[data-tab="tab-details"]');
-      if (analyticsTabBtn) {
-        analyticsTabBtn.click();
-      }
-
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 50);
-
+      document.querySelector('.nav-tab[data-tab="tab-details"]')?.click();
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
       toast(`Inspecting: ${link.title || link.short_code}`);
     };
 
-    // Top Performing Links Card Renderer
     function renderTopLinksCard() {
       const container = $('topLinksList');
       if (!container) return;
@@ -1061,46 +1013,45 @@
 
         if (!all.length) {
           container.innerHTML = `
-            <div class="empty-top-links">
-              <span style="font-size: 1.6rem;">🔗</span>
-              <p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No links created yet</p>
-              <span style="font-size: 0.74rem; color: var(--text-muted);">Create your first short link above to see rankings.</span>
-            </div>`;
+<div class="empty-top-links">
+<span style="font-size: 1.6rem;">🔗</span>
+<p style="margin: 0.35rem 0 0.15rem 0; font-size: 0.88rem; font-weight: 700; color: var(--text-headline);">No links created yet</p>
+<span style="font-size: 0.74rem; color: var(--text-muted);">Create your first short link above to see rankings.</span>
+</div>`;
           if ($('topPerformerNote')) {
-            $('topPerformerNote').innerHTML = `<span>⚡ Awaiting your first short link.</span>`;
+            $('topPerformerNote').innerHTML = '<span>⚡ Awaiting your first short link.</span>';
           }
           return;
         }
 
         all.sort((a, b) => {
           const clicksDiff = (Number(b.click_count) || 0) - (Number(a.click_count) || 0);
-          if (clicksDiff !== 0) return clicksDiff;
-          return Number(b.id || 0) - Number(a.id || 0);
+          return clicksDiff !== 0 ? clicksDiff : Number(b.id || 0) - Number(a.id || 0);
         });
 
         const top = all.slice(0, 3);
         const medals = ['🥇', '🥈', '🥉'];
         const rankBorders = ['border-gold', 'border-silver', 'border-bronze'];
 
-        container.innerHTML = top.map((l, idx) => `
-          <div class="top-link-item ${rankBorders[idx] || ''}" onclick="onTopLinkClick(${l.id})" title="Click to inspect this link">
-            <div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
-            <div class="top-link-meta-box">
-              <strong class="top-link-name">${escapeHTML(l.title || 'Untitled Link')}</strong>
-              <span class="top-link-slug">${escapeHTML(l.custom_alias || l.short_code || '')}</span>
-            </div>
-            <div class="top-link-right">
-              <span class="top-link-count">${Number(l.click_count || 0).toLocaleString()} <em>clicks</em></span>
-              <button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(formatReachableUrl(l.short_url || ''))}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
-            </div>
-          </div>
-        `).join('');
+        container.innerHTML = top.map((link, idx) => `
+<div class="top-link-item ${rankBorders[idx] || ''}" onclick="onTopLinkClick(${link.id})" title="Click to inspect this link">
+<div class="top-link-badge">${medals[idx] || (idx + 1)}</div>
+<div class="top-link-meta-box">
+<strong class="top-link-name">${escapeHTML(link.title || 'Untitled Link')}</strong>
+<span class="top-link-slug">${escapeHTML(link.custom_alias || link.short_code || '')}</span>
+</div>
+<div class="top-link-right">
+<span class="top-link-count">${Number(link.click_count || 0).toLocaleString()} <em>clicks</em></span>
+<button class="action-icon-btn" onclick="event.stopPropagation(); copyLink('${escapeHTML(formatReachableUrl(link.short_url || ''))}')" title="Copy Link" style="width:28px;height:28px;font-size:0.75rem;">📋</button>
+</div>
+</div>
+`).join('');
 
         if ($('topPerformerNote')) {
           const leader = top[0];
           const totalClicks = all.reduce((sum, item) => sum + (Number(item.click_count) || 0), 0);
           const leaderClicks = Number(leader.click_count) || 0;
-          
+
           if (totalClicks > 0 && leaderClicks > 0) {
             const sharePct = Math.round((leaderClicks / totalClicks) * 100);
             $('topPerformerNote').innerHTML = `🔥 <strong>${escapeHTML(leader.title || leader.short_code)}</strong> accounts for <strong>${sharePct}%</strong> of total traffic.`;
@@ -1109,7 +1060,7 @@
           }
         }
       } catch (err) {
-        console.warn("Leaderboard render error:", err);
+        console.warn('Leaderboard render error:', err);
       }
     }
     window.renderTopLinksCard = renderTopLinksCard;
@@ -1168,7 +1119,7 @@
 
     async function api(path, opts = {}) {
       const headers = { ...opts.headers };
-      let body = opts.body;
+      let { body } = opts;
 
       if (body && typeof body === 'object' && !(body instanceof FormData)) {
         body = JSON.stringify(body);
@@ -1283,8 +1234,7 @@
         if (acc.country) localStorage.setItem('lp_admin_country', acc.country);
         if (acc.email) localStorage.setItem('lp_admin_email', acc.email);
         loadAdminProfile();
-      } catch {
-      }
+      } catch { }
     }
     syncAdminProfile();
 
@@ -1343,8 +1293,7 @@
         } else if (offset === 1) {
           label = 'Tomorrow';
         } else {
-          const weekdayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
-          label = `${d.getDate()} ${weekdayStr}`;
+          label = `${d.getDate()} ${d.toLocaleDateString('en-US', { weekday: 'short' })}`;
         }
 
         points.push({
@@ -1365,9 +1314,9 @@
       const pad = 52;
       const maxVal = Math.max(...data.map(d => d.clicks), 5);
 
-      const grid = $('gridLinesGroup');
-      if (grid) {
-        grid.replaceChildren();
+      const renderGrid = gridEl => {
+        if (!gridEl) return;
+        gridEl.replaceChildren();
         for (let i = 0; i <= 3; i++) {
           const y = pad + (i * (h - pad * 2) / 3);
           const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -1377,25 +1326,12 @@
           line.setAttribute('y2', y);
           line.setAttribute('stroke', 'rgba(99, 102, 241, 0.12)');
           line.setAttribute('stroke-dasharray', '5 5');
-          grid.appendChild(line);
+          gridEl.appendChild(line);
         }
-      }
+      };
 
-      const grid2 = $('gridLinesGroup2');
-      if (grid2) {
-        grid2.replaceChildren();
-        for (let i = 0; i <= 3; i++) {
-          const y = pad + (i * (h - pad * 2) / 3);
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', pad);
-          line.setAttribute('x2', w - pad);
-          line.setAttribute('y1', y);
-          line.setAttribute('y2', y);
-          line.setAttribute('stroke', 'rgba(99, 102, 241, 0.12)');
-          line.setAttribute('stroke-dasharray', '5 5');
-          grid2.appendChild(line);
-        }
-      }
+      renderGrid($('gridLinesGroup'));
+      renderGrid($('gridLinesGroup2'));
 
       const step = (w - pad * 2) / (data.length - 1);
       const points = data.map((d, i) => ({
@@ -1434,10 +1370,10 @@
 
         if ($('chartDateRow')) {
           $('chartDateRow').innerHTML = points.map(pt => `
-            <span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
-              ${escapeHTML(pt.label)}
-            </span>
-          `).join('');
+<span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
+${escapeHTML(pt.label)}
+</span>
+`).join('');
         }
       }
 
@@ -1463,10 +1399,10 @@
 
         if ($('chartDateRow2')) {
           $('chartDateRow2').innerHTML = points.map(pt => `
-            <span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
-              ${escapeHTML(pt.label)}
-            </span>
-          `).join('');
+<span class="chart-label-item" style="left: ${(pt.x / w) * 100}%;">
+${escapeHTML(pt.label)}
+</span>
+`).join('');
         }
       }
     }
@@ -1537,7 +1473,6 @@
         document.querySelectorAll('#customCampDropdownMenu .custom-dropdown-item').forEach(el => {
           el.classList.toggle('active', el.textContent === (matched ? matched.name : 'No Campaign'));
         });
-
       } else {
         $('drawerModeTag').textContent = 'Smart Builder';
         $('drawerTitle').textContent = 'Create Short Link';
@@ -1562,7 +1497,7 @@
 
       $('inpPassword').type = 'password';
       if ($('eyeIcon')) {
-        $('eyeIcon').innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+        $('eyeIcon').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
       }
 
       drawerBackdrop.classList.add('active');
@@ -1591,17 +1526,15 @@
       }
     });
 
-    $('btnTogglePasswordEye')?.addEventListener('click', (e) => {
+    $('btnTogglePasswordEye')?.addEventListener('click', e => {
       e.preventDefault();
       const input = $('inpPassword');
       const icon = $('eyeIcon');
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
-      } else {
-        input.type = 'password';
-        icon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
-      }
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      icon.innerHTML = isPassword
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
     });
 
     $('createLinkForm').onsubmit = async e => {
@@ -1682,22 +1615,22 @@
         const renderBarRows = (items, targetId, fillClass, emptyText) => {
           $(targetId).innerHTML = items?.length
             ? items.map(item => `
-              <div class="metric-progress-item">
-                <div class="progress-meta">
-                  <span>${escapeHTML(item.name)}</span>
-                  <span>${Number(item.count || 0)} (${Number(item.pct || 0)}%)</span>
-                </div>
-                <div class="progress-bar-bg">
-                  <div class="progress-fill ${fillClass}" style="width:${Math.min(100, Math.max(0, Number(item.pct) || 0))}%"></div>
-                </div>
-              </div>`).join('')
+<div class="metric-progress-item">
+<div class="progress-meta">
+<span>${escapeHTML(item.name)}</span>
+<span>${Number(item.count || 0)} (${Number(item.pct || 0)}%)</span>
+</div>
+<div class="progress-bar-bg">
+<div class="progress-fill ${fillClass}" style="width:${Math.min(100, Math.max(0, Number(item.pct) || 0))}%"></div>
+</div>
+</div>`).join('')
             : `<p class="empty-placeholder">${emptyText}</p>`;
         };
 
         renderBarRows(breakdown?.sources, 'sourceRows', 'grad-azure', 'No traffic referrers logged yet.');
         renderBarRows(breakdown?.devices, 'deviceRows', 'grad-violet', 'No device telemetry logged yet.');
         renderBarRows(breakdown?.countries, 'countryRows', 'grad-emerald', 'No geographic data logged yet.');
-        
+
         renderTopLinksCard();
       } catch (err) {
         console.error('Dashboard error:', err);
@@ -1732,23 +1665,16 @@
         const data = await api('/api/links');
         cachedLinks = Array.isArray(data) ? data : [];
 
-        // 1. Live refresh of currently inspected link
         if (selectedLinkId) {
-          const selectedLink = cachedLinks.find(
-            link => Number(link.id) === Number(selectedLinkId)
-          );
+          const selectedLink = cachedLinks.find(link => Number(link.id) === Number(selectedLinkId));
           if (selectedLink && $('detClicks')) {
             $('detClicks').textContent = Number(selectedLink.click_count || 0).toLocaleString();
           }
         }
 
-        // 2. Tables render karein
         renderLinks(filteredLinks());
-
-        // 3. RHS Top Performing Leaderboard render karein
         renderTopLinksCard();
 
-        // 4. Spotlight & Active Link inspection
         const activeLink = cachedLinks.find(l => l.status === 'active') || cachedLinks[0];
 
         if (cachedLinks.length > 0) {
@@ -1793,36 +1719,36 @@
         const titleText = isDetailsView ? 'Click row to inspect live telemetry' : 'Click row to inspect';
 
         const actionCell = isDetailsView ? '' : `
-          <td style="text-align: right;">
-            <div class="table-action-row">
-              <button class="action-icon-btn" data-action="qr" data-id="${Number(l.id)}" title="QR Code">▦</button>
-              <button class="action-icon-btn btn-share" data-action="share" data-id="${Number(l.id)}" title="Share Short Link">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                  <polyline points="16 6 12 2 8 6"/>
-                  <line x1="12" y1="2" x2="12" y2="15"/>
-                </svg>
-              </button>
-              <button class="action-icon-btn" data-action="edit" data-id="${Number(l.id)}" title="Edit Link">✎</button>
-              <button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}" title="${status === 'active' ? 'Pause Link' : 'Activate Link'}">${status === 'active' ? '⏸' : '▶'}</button>
-              <button class="action-icon-btn btn-danger-action" data-action="delete" data-id="${Number(l.id)}" title="Delete Link">✕</button>
-            </div>
-          </td>`;
-          
+<td style="text-align: right;">
+<div class="table-action-row">
+<button class="action-icon-btn" data-action="qr" data-id="${Number(l.id)}" title="QR Code">▦</button>
+<button class="action-icon-btn btn-share" data-action="share" data-id="${Number(l.id)}" title="Share Short Link">
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+<polyline points="16 6 12 2 8 6"/>
+<line x1="12" y1="2" x2="12" y2="15"/>
+</svg>
+</button>
+<button class="action-icon-btn" data-action="edit" data-id="${Number(l.id)}" title="Edit Link">✎</button>
+<button class="action-icon-btn" data-action="toggle" data-id="${Number(l.id)}" title="${status === 'active' ? 'Pause Link' : 'Activate Link'}">${status === 'active' ? '⏸' : '▶'}</button>
+<button class="action-icon-btn btn-danger-action" data-action="delete" data-id="${Number(l.id)}" title="Delete Link">✕</button>
+</div>
+</td>`;
+
         return `
-          <tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="${titleText}">
-            <td>
-              <div class="table-link-meta">
-                <span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
-                <span class="table-dest" title="${escapeHTML(l.original_url)}">${escapeHTML(l.original_url)}</span>
-              </div>
-            </td>
-            <td><a href="${shortUrl}" target="_blank" rel="noopener" class="code-link-badge">${code}</a></td>
-            <td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
-            <td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
-            <td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
-            ${actionCell}
-          </tr>`;
+<tr class="clickable-row ${isSelected}" data-link-id="${l.id}" title="${titleText}">
+<td>
+<div class="table-link-meta">
+<span class="table-title">${escapeHTML(l.title)} ${l.has_password ? '🔒' : ''}</span>
+<span class="table-dest" title="${escapeHTML(l.original_url)}">${escapeHTML(l.original_url)}</span>
+</div>
+</td>
+<td><a href="${shortUrl}" target="_blank" rel="noopener" class="code-link-badge">${code}</a></td>
+<td><span class="click-number-accent">${Math.max(0, Number(l.click_count) || 0)}</span></td>
+<td><span class="status-glass-chip ${status}">${escapeHTML(status)}</span></td>
+<td><span class="date-stamp">${escapeHTML(String(l.created_at || '').slice(0, 10))}</span></td>
+${actionCell}
+</tr>`;
       }).join('');
     }
 
@@ -1849,11 +1775,11 @@
       if (!link) {
         link = (selectedLinkId && cachedLinks.find(l => l.id === selectedLinkId)) ||
           cachedLinks.find(l => l.status === 'active') || cachedLinks[0] || {
-            title: 'Select or create a link',
-            original_url: 'https://example.com',
-            short_url: 'https://linkpulse.io/latest',
-            short_code: 'latest'
-          };
+          title: 'Select or create a link',
+          original_url: 'https://example.com',
+          short_url: 'https://linkpulse.io/latest',
+          short_code: 'latest'
+        };
       }
 
       const formattedUrl = formatReachableUrl(link.short_url);
@@ -1901,18 +1827,20 @@
       const canvas = container?.querySelector('canvas');
       const img = container?.querySelector('img');
       let dataUrl = '';
+
       if (canvas && typeof canvas.toDataURL === 'function') {
         try {
           dataUrl = canvas.toDataURL('image/png');
-        } catch {}
+        } catch { }
       }
-      if (!dataUrl && img?.src && img.src.startsWith('data:')) {
+      if (!dataUrl && img?.src?.startsWith('data:')) {
         dataUrl = img.src;
       }
       if (!dataUrl) {
         toast('Unable to locate QR canvas.');
         return;
       }
+
       const anchor = document.createElement('a');
       anchor.download = `qr-${code || 'shortlink'}.png`;
       anchor.href = dataUrl;
@@ -2041,14 +1969,14 @@
         }
 
         $('campAssignedLinksList').innerHTML = (assigned_links && assigned_links.length) ? assigned_links.map(l => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.95rem; background: rgba(248, 250, 252, 0.95); border: 1.5px solid #e2e8f0; border-radius: 12px;">
-            <div style="min-width: 0; max-width: 80%;">
-              <strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.custom_alias || l.short_code)}</strong>
-              <span style="display: block; font-size: 0.78rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.original_url)} · ${l.click_count || 0} clicks</span>
-            </div>
-            <button class="action-icon-btn btn-danger-action" onclick="removeLinkFromCampaign(${campaign.id}, ${l.id})" title="Remove link from campaign" style="width:28px;height:28px;font-size:0.8rem;">✕</button>
-          </div>
-        `).join('') : '<p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>';
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0.95rem; background: rgba(248, 250, 252, 0.95); border: 1.5px solid #e2e8f0; border-radius: 12px;">
+<div style="min-width: 0; max-width: 80%;">
+<strong style="font-size: 0.9rem; color: #1e1b4b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.title || l.custom_alias || l.short_code)}</strong>
+<span style="display: block; font-size: 0.78rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(l.original_url)} · ${l.click_count || 0} clicks</span>
+</div>
+<button class="action-icon-btn btn-danger-action" onclick="removeLinkFromCampaign(${campaign.id}, ${l.id})" title="Remove link from campaign" style="width:28px;height:28px;font-size:0.8rem;">✕</button>
+</div>
+`).join('') : '<p class="empty-placeholder">No links in this campaign yet. Use the dropdown above to add one!</p>';
 
         $('campaignDetailsModal').classList.add('active');
       } catch (err) {
@@ -2139,20 +2067,20 @@
 
         if ($('campaignRows')) {
           $('campaignRows').innerHTML = cachedCampaigns.map(c => `
-            <div class="campaign-tile-card">
-              <div class="camp-top-row">
-                <span class="camp-name">${escapeHTML(c.name)}</span>
-                <div style="display: flex; gap: 0.45rem; align-items: center;">
-                  <button class="action-icon-btn" data-camp-edit="${c.id}" title="Edit Campaign" style="width:26px;height:26px;font-size:0.75rem;">✎</button>
-                  <button class="camp-del-cross" data-camp-del="${c.id}" title="Delete Campaign">✕</button>
-                </div>
-              </div>
-              <span class="camp-tag">#${escapeHTML(c.tag || 'general')}</span>
-              <div class="camp-footer-metrics">
-                <span><strong>${Number(c.link_count || 0)}</strong> links</span>
-                <span><strong>${Number(c.click_count || 0)}</strong> clicks</span>
-              </div>
-            </div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
+<div class="campaign-tile-card">
+<div class="camp-top-row">
+<span class="camp-name">${escapeHTML(c.name)}</span>
+<div style="display: flex; gap: 0.45rem; align-items: center;">
+<button class="action-icon-btn" data-camp-edit="${c.id}" title="Edit Campaign" style="width:26px;height:26px;font-size:0.75rem;">✎</button>
+<button class="camp-del-cross" data-camp-del="${c.id}" title="Delete Campaign">✕</button>
+</div>
+</div>
+<span class="camp-tag">#${escapeHTML(c.tag || 'general')}</span>
+<div class="camp-footer-metrics">
+<span><strong>${Number(c.link_count || 0)}</strong> links</span>
+<span><strong>${Number(c.click_count || 0)}</strong> clicks</span>
+</div>
+</div>`).join('') || '<p class="empty-placeholder">No campaigns yet.</p>';
         }
 
         if ($('inpCampaign')) {
@@ -2276,22 +2204,19 @@
 
     $('inpExpiry').min = new Date().toISOString().slice(0, 10);
 
-    // Initial Load
     Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
 
-    // 2-Second Super Fast Realtime Sync
     let isSyncing = false;
     setInterval(async () => {
-      if (isSyncing) return; // Pichli request chal rahi ho to wait karega (No lag/freeze)
+      if (isSyncing) return;
       isSyncing = true;
       try {
         await Promise.all([refreshDashboard(), loadLinks(), loadCampaigns()]);
-      } catch (e) {
-        // ignore background sync errors
+      } catch {
       } finally {
         isSyncing = false;
       }
-    }, 2000); // 👈 2000ms (2 seconds)
+    }, 2000);
   </script>
 </body>
 
