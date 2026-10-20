@@ -2633,40 +2633,66 @@ tr.selected-row {
   flex: 1 !important;
 }
 
+/* Download PNG */
 .btn-spotlight-action {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 0.5rem !important;
+  width: 100% !important;
   padding: 0.65rem 0.85rem !important;
   border-radius: 10px !important;
-  border: 1.5px solid var(--glass-border-subtle) !important;
-  background: #ffffff !important;
-  color: var(--text-headline) !important;
-  font-size: 0.82rem !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important; /* 👉 Light Indigo/Blue */
+  border: 1.5px solid rgba(99, 102, 241, 0.35) !important;
+  color: #4338ca !important;
+  font-size: 0.84rem !important;
   font-weight: 700 !important;
   font-family: inherit !important;
   cursor: pointer !important;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08) !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-.btn-spotlight-action:hover {
-  background: #4f46e5 !important;
-  border-color: #4f46e5 !important;
-  color: #ffffff !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
+  outline: none !important;
 }
 
 .btn-spotlight-action svg {
+  color: #4f46e5 !important;
   stroke: currentColor !important;
 }
 
+/* Download PNG Hover */
+.btn-spotlight-action:hover {
+  background: #4f46e5 !important;
+  border-color: #4338ca !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28) !important;
+}
+.btn-spotlight-action:hover svg {
+  color: #ffffff !important;
+}
+
+/* Share Link */
+.btn-spotlight-share {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important; /* 👉 Light Mint/Green */
+  border: 1.5px solid rgba(16, 185, 129, 0.4) !important;
+  color: #065f46 !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08) !important;
+}
+
+.btn-spotlight-share svg {
+  color: #059669 !important;
+  stroke: currentColor !important;
+}
+
+/* Share Link Hover */
 .btn-spotlight-share:hover {
   background: #059669 !important;
-  border-color: #059669 !important;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.28) !important;
+}
+.btn-spotlight-share:hover svg {
+  color: #ffffff !important;
 }
 
 /* Split (Bar Graph on Right) */
@@ -2695,38 +2721,4 @@ tr.selected-row {
   flex-direction: column !important;
   gap: 0.5rem !important;
   flex: 1 !important;
-}
-
-.btn-spotlight-action {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 0.5rem !important;
-  width: 100% !important;
-  padding: 0.65rem 0.85rem !important;
-  border-radius: 10px !important;
-  border: 1.5px solid rgba(226, 232, 240, 0.9) !important;
-  background: #ffffff !important;
-  color: var(--text-headline) !important;
-  font-size: 0.84rem !important;
-  font-weight: 700 !important;
-  font-family: inherit !important;
-  cursor: pointer !important;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  outline: none !important;
-}
-
-.btn-spotlight-action:hover {
-  background: #4f46e5 !important;
-  border-color: #4f46e5 !important;
-  color: #ffffff !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.25) !important;
-}
-
-.btn-spotlight-share:hover {
-  background: #059669 !important;
-  border-color: #059669 !important;
-  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25) !important;
 }
