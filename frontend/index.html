@@ -205,32 +205,35 @@
           <h1 class="header-title" id="pageTitle">Live Telemetry Overview</h1>
           <p class="header-subtitle" id="pageSub">Real-time edge redirects, atomic caps, SSRF protection & device intelligence.</p>
         </div>
-        <div class="header-actions" id="headerActions">
-          <button class="btn-glass-light" id="exportCsvBtn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>Export CSV</span>
-          </button>
-          <input type="file" id="csvFileInput" accept=".csv" hidden />
-          <button class="btn-glass-light" id="importCsvBtn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            <span>Import CSV</span>
-          </button>
-          <button class="btn-gradient" id="openDrawerBtn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Create Smart Link</span>
-          </button>
-        </div>
+       <div class="header-actions" id="headerActions">
+  <button class="btn-light-export" id="exportCsvBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+    <span>Export CSV</span>
+  </button>
+
+  <input type="file" id="csvFileInput" accept=".csv" hidden />
+
+  <button class="btn-light-import" id="importCsvBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+    <span>Import CSV</span>
+  </button>
+
+  <button class="btn-gradient" id="openDrawerBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+    <span>Create Smart Link</span>
+  </button>
+</div>
       </header>
 
       <!-- Overview -->
